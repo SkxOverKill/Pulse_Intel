@@ -1,0 +1,80 @@
+# Deployment target for a VPS, and the local path once Docker is available.
+# Not used by the current local dev flow — `npm run db:dev` provides Postgres
+# without Docker while hypervisor support is disabled on this machine.
+#
+#   docker compose up -d postgres redis     # infra only, app via `npm run dev`
+#   docker compose --profile full up -d     # everything
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pulse
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pulse_dev_password}
+      POSTGRES_DB: pulse
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pulse -d pulse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Enrichment queue state should survive a restart — an in-flight bulk job
+    # that loses its queue silently burns the day's API quota on a retry.
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    profiles: ["full"]
+    build: .
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://pulse:${POSTGRES_PASSWORD:-pulse_dev_password}@postgres:5432/pulse
+      REDIS_URL: redis://redis:6379
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+      CREDENTIAL_ENC_KEY: ${CREDENTIAL_ENC_KEY:?set CREDENTIAL_ENC_KEY}
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Same image, different entrypoint — feed ingestion, enrichment queue, ATT&CK
+  # sync. Shares src/lib with the app so domain logic is written once.
+  worker:
+    profiles: ["full"]
+    build: .
+    restart: unless-stopped
+    command: ["node", "dist/worker.js"]
+    environment:
+      DATABASE_URL: postgres://pulse:${POSTGRES_PASSWORD:-pulse_dev_password}@postgres:5432/pulse
+      REDIS_URL: redis://redis:6379
+      CREDENTIAL_ENC_KEY: ${CREDENTIAL_ENC_KEY:?set CREDENTIAL_ENC_KEY}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  redisdata:

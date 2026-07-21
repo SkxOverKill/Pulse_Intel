@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+/*
+ * Pulse Intelligence design tokens.
+ *
+ * Dark navy, not black — long analyst sessions on a pure-black UI are fatiguing,
+ * and threat-intel dashboards need enough surface separation to layer cards,
+ * tables and side panels without borders everywhere. Everything is one
+ * committed dark theme; there is no light mode to keep in sync.
+ */
+@theme {
+  /* Surfaces — each step is a deliberate elevation level. */
+  --color-base: #070d18;
+  --color-surface: #0d1626;
+  --color-surface-2: #131f33;
+  --color-surface-3: #1a2942;
+  --color-line: #22344f;
+  --color-line-strong: #2e4665;
+
+  /* Text */
+  --color-ink: #e8eefb;
+  --color-ink-muted: #94a7c4;
+  --color-ink-faint: #5f739a;
+
+  /* Brand — Pulse blue */
+  --color-brand: #3b82f6;
+  --color-brand-hover: #5b9bff;
+  --color-brand-dim: #1d4ed8;
+  --color-accent: #22d3ee;
+
+  /* Severity scale, used by indicators, alerts and news. */
+  --color-sev-critical: #f43f5e;
+  --color-sev-high: #fb923c;
+  --color-sev-medium: #facc15;
+  --color-sev-low: #38bdf8;
+  --color-sev-info: #64748b;
+
+  /* Traffic Light Protocol */
+  --color-tlp-clear: #e2e8f0;
+  --color-tlp-green: #22c55e;
+  --color-tlp-amber: #f59e0b;
+  --color-tlp-amber-strict: #d97706;
+  --color-tlp-red: #ef4444;
+
+  --color-ok: #22c55e;
+  --color-warn: #f59e0b;
+  --color-danger: #ef4444;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "Cascadia Code", monospace;
+
+  --radius-card: 0.625rem;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-base);
+  color: var(--color-ink);
+}
+
+/* Scrollbars styled to match the shell — default light ones break the theme. */
+* {
+  scrollbar-color: var(--color-surface-3) transparent;
+  scrollbar-width: thin;
+}
+
+/* IOC values, hashes and technique IDs are read character-by-character;
+   tabular figures keep columns from jittering as data updates. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
