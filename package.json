@@ -17,7 +17,10 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:demo": "tsx prisma/seed-demo.ts",
     "attack:sync": "tsx --max-old-space-size=3072 scripts/attack-sync.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "verify:enrichment": "tsx scripts/verify-enrichment.ts",
+    "worker": "tsx src/worker.ts",
+    "feeds:install": "tsx scripts/install-feeds.ts"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",

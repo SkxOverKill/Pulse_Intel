@@ -34,7 +34,7 @@ const SECTIONS: { heading: string; items: NavItem[] }[] = [
     heading: "Overview",
     items: [
       { href: "/", label: "Dashboard", icon: Gauge },
-      { href: "/news", label: "Threat News", icon: Newspaper, soon: true },
+      { href: "/news", label: "Threat News", icon: Newspaper },
     ],
   },
   {
@@ -50,8 +50,8 @@ const SECTIONS: { heading: string; items: NavItem[] }[] = [
     heading: "Indicators",
     items: [
       { href: "/indicators", label: "IOCs", icon: Database },
-      { href: "/enrichment", label: "Enrichment", icon: Activity, soon: true },
-      { href: "/vulnerabilities", label: "Vulnerabilities", icon: ShieldAlert, soon: true },
+      { href: "/enrichment", label: "Enrichment", icon: Activity },
+      { href: "/vulnerabilities", label: "Vulnerabilities", icon: ShieldAlert },
     ],
   },
   {

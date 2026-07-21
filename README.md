@@ -5,9 +5,10 @@ with bulk enrichment, MITRE ATT&CK mapping, feed ingestion, threat hunting, and 
 
 Full plan and rationale: [`../pulse_intelligence_spec.md`](../pulse_intelligence_spec.md)
 
-**Status: Phases 1–3 of 8 complete.** Foundation, auth, RBAC, audit log, schema and app
-shell; CRUD for actors, campaigns, indicators, reports and feeds; IOC bulk import; global
-search; and MITRE ATT&CK v19.1 with a navigable matrix and technique mapping.
+**Status: Phases 1–5 of 8 complete.** Foundation, auth, RBAC, audit log; CRUD for actors,
+campaigns, indicators, reports and feeds; IOC bulk import; global search; MITRE ATT&CK v19.1
+with matrix and technique mapping; enrichment (VirusTotal / AbuseIPDB / OTX) behind a Redis
+rate limiter; and 18 automated feeds refreshing hourly.
 
 ## Stack
 
@@ -66,6 +67,35 @@ Password for all three: `PulseAdmin!2026` (override with `SEED_PASSWORD`).
 | `npm run db:migrate` | Standard `prisma migrate dev` (real Postgres only) |
 | `npm run db:migrate:offline -- <name>` | Migration workaround for the dev server — see below |
 | `npm run attack:sync` | Pull MITRE ATT&CK (enterprise; `--all` for every domain) |
+
+## Automation (feeds + enrichment)
+
+```bash
+npm run feeds:install          # install the 18-source catalogue (idempotent)
+npm run worker                 # run feeds on schedule + drain the enrichment queue
+npm run worker -- --run-now    # ...and run every feed immediately on boot
+npm run verify:enrichment -- --live   # prove the rate limiter and API keys work
+```
+
+The worker must be running for anything automated to happen. It owns the hourly schedule,
+re-reads it every 5 minutes so UI edits take effect without a restart, and removes
+schedulers for feeds you disable.
+
+**Sources** (all free): CISA KEV, NVD, FIRST EPSS, abuse.ch (URLhaus / ThreatFox / Feodo),
+OTX pulses, and eleven vendor and government news feeds (CISA, Mandiant, Microsoft, Talos,
+Unit 42, DFIR Report, Securelist, Krebs, SANS ISC, BleepingComputer, The Hacker News).
+
+**Enrichment quotas** are the binding constraint, not queue throughput:
+
+| Provider | Free tier | Cache TTL | Tried |
+|---|---|---|---|
+| AlienVault OTX | effectively unlimited | 72 h | first |
+| AbuseIPDB | 1,000/day | 24 h | second |
+| VirusTotal | **4/min, 500/day** | 168 h | last |
+
+Ordering is deliberate: every indicator OTX can answer is a VirusTotal request preserved.
+At 500/day, enriching 10,000 indicators against VirusTotal takes about 20 days — the
+`/enrichment` page quotes real ETAs rather than implying "soon".
 
 ## MITRE ATT&CK
 
@@ -135,12 +165,31 @@ run entirely on `npm run db:dev`.
 
 ## Known issues
 
-**Intermittent `P1017 / ConnectionClosed` in the dev log.** Appears when a `next build` or
-seed script runs against the local dev Postgres at the same time as `next dev` — several
-Prisma pools against one small server. Not reproducible from an idle connection alone
-(tested to a 60s gap, with and without idle expiry), and not seen against a normal Postgres.
-Requests still return 200 in steady state. Unresolved; see the comment in `src/lib/db.ts`
-and do not assume the pool config there fixed it.
+**The local Prisma dev Postgres is not robust enough for this workload — replace it.**
+During a full feed ingest (1,651 KEV CVEs, ~2,000 IOCs, 350k EPSS rows parsed) the
+`prisma dev` server wedged: ports stayed open but every connection was refused, and it
+needed a kill plus a stale-lock cleanup at
+`%LOCALAPPDATA%\prisma-dev-nodejs\Data\durable-streams\pulse\server.lock*` to recover.
+No data was lost, but this will recur under hourly automation.
+
+It also cannot handle: `prisma migrate dev` (P1017), introspection (`prepared statement
+"s3" already exists`), or dynamically-shaped `upsert` calls (`08P01 bind message supplies
+N parameters`). Those are worked around, but they are all symptoms of the same thing — it
+is a development toy being asked to do production-shaped work.
+
+**Fix:** install a real PostgreSQL. Native Windows works fine and needs no virtualization
+(so the hypervisor being off does not matter):
+
+```powershell
+winget install PostgreSQL.PostgreSQL.17
+```
+
+Then set `DATABASE_URL` to it, run `npm run db:migrate` (the offline workaround becomes
+unnecessary), and delete `scripts/migrate-offline.ts`.
+
+**Queries are deliberately sequential in several places** (`getCounts` on the dashboard,
+the enrichment page) rather than `Promise.all`, because concurrency against the dev server
+triggers the failure above. Once on a real Postgres, those can go back to parallel.
 
 `npm audit` reports a moderate PostCSS advisory (XSS via unescaped `</style>` in CSS
 stringify output), reached transitively through `next`. It is build-time only and not
