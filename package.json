@@ -16,6 +16,7 @@
     "db:migrate:offline": "tsx scripts/migrate-offline.ts",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:demo": "tsx prisma/seed-demo.ts",
+    "attack:sync": "tsx --max-old-space-size=3072 scripts/attack-sync.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {

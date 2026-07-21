@@ -382,16 +382,42 @@ model Tool {
   actors ActorTool[]
 }
 
+/// ATT&CK tactic — the matrix columns. Stored rather than hardcoded so the
+/// column order comes from MITRE's own x-mitre-matrix ordering.
+model Tactic {
+  id          String       @id @default(cuid())
+  /// e.g. "TA0002".
+  attackId    String
+  name        String
+  /// e.g. "execution" — this is what techniques reference in kill_chain_phases.
+  shortname   String
+  description String?
+  domain      AttackDomain @default(ENTERPRISE)
+  /// Position in the matrix, taken from x-mitre-matrix tactic_refs.
+  order       Int
+  attackVersion String
+
+  @@unique([shortname, domain])
+  @@index([domain, order])
+}
+
 model Technique {
   id   String @id @default(cuid())
   /// e.g. "T1566" or "T1566.001". Stable across ATT&CK versions — all mappings key on this.
   attackId String
   name        String
   description String?
-  tactic      String
+  /// Tactic shortnames. An array, not a single value: 21% of techniques belong
+  /// to more than one tactic (T1053.005 spans execution, persistence and
+  /// privilege-escalation) and must appear in every matching matrix column.
+  tactics     String[]     @default([])
   domain      AttackDomain @default(ENTERPRISE)
   platforms   String[]     @default([])
+  /// Resolved from x-mitre-analytic log source references. ATT&CK v19 moved
+  /// these off the technique object itself.
   dataSources String[]     @default([])
+  /// Composed from linked x-mitre-detection-strategy analytics. Empty on the
+  /// technique object since v19.
   detection   String?
   isSubtechnique Boolean   @default(false)
   parentId       String?
@@ -408,7 +434,7 @@ model Technique {
   reports   ReportTechnique[]
 
   @@unique([attackId, domain])
-  @@index([tactic])
+  @@index([tactics])
   @@index([domain])
   @@index([deprecated])
 }

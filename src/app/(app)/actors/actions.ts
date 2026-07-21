@@ -184,6 +184,89 @@ export async function addAlias(formData: FormData): Promise<void> {
   revalidatePath(`/actors/${actorId}`);
 }
 
+/**
+ * Map an ATT&CK technique to an actor.
+ *
+ * Kept separate from editing the actor because it is a different claim with its
+ * own confidence — and because an analyst overriding an imported MITRE mapping
+ * needs their name on it. Upsert sets `addedById`, so a hand-reviewed mapping is
+ * visibly distinguishable from the bulk MITRE import afterwards.
+ */
+export async function linkTechnique(formData: FormData): Promise<void> {
+  const actorId = String(formData.get("actorId") ?? "");
+  await withAction(
+    {
+      role: "ANALYST",
+      schema: z.object({
+        actorId: z.string().min(1),
+        techniqueId: z.string().min(1, { error: "Pick a technique." }),
+        confidence: z.coerce.number().int().min(0).max(100).default(50),
+        notes: z.string().trim().optional(),
+      }),
+      formData,
+    },
+    async (input, user) => {
+      await db.actorTechnique.upsert({
+        where: {
+          actorId_techniqueId: {
+            actorId: input.actorId,
+            techniqueId: input.techniqueId,
+          },
+        },
+        update: {
+          confidence: input.confidence,
+          notes: input.notes || null,
+          addedById: user.id,
+        },
+        create: {
+          actorId: input.actorId,
+          techniqueId: input.techniqueId,
+          confidence: input.confidence,
+          notes: input.notes || null,
+          addedById: user.id,
+        },
+      });
+      await audit({
+        action: "UPDATE",
+        entityType: "ThreatActor",
+        entityId: input.actorId,
+        userId: user.id,
+        changes: { linkedTechnique: input.techniqueId, confidence: input.confidence },
+      });
+      return ok();
+    },
+  );
+  revalidatePath(`/actors/${actorId}`);
+}
+
+export async function unlinkTechnique(formData: FormData): Promise<void> {
+  const actorId = String(formData.get("actorId") ?? "");
+  await withAction(
+    {
+      role: "ANALYST",
+      schema: z.object({
+        actorId: z.string().min(1),
+        techniqueId: z.string().min(1),
+      }),
+      formData,
+    },
+    async (input, user) => {
+      await db.actorTechnique.deleteMany({
+        where: { actorId: input.actorId, techniqueId: input.techniqueId },
+      });
+      await audit({
+        action: "UPDATE",
+        entityType: "ThreatActor",
+        entityId: input.actorId,
+        userId: user.id,
+        changes: { unlinkedTechnique: input.techniqueId },
+      });
+      return ok();
+    },
+  );
+  revalidatePath(`/actors/${actorId}`);
+}
+
 export async function removeAlias(formData: FormData): Promise<void> {
   const actorId = String(formData.get("actorId") ?? "");
   await withAction(

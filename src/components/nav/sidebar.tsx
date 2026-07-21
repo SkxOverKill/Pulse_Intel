@@ -57,7 +57,7 @@ const SECTIONS: { heading: string; items: NavItem[] }[] = [
   {
     heading: "Operations",
     items: [
-      { href: "/attack", label: "ATT&CK Matrix", icon: Radar, soon: true },
+      { href: "/attack", label: "ATT&CK Matrix", icon: Radar },
       { href: "/hunting", label: "Threat Hunting", icon: Crosshair, soon: true },
       { href: "/feeds", label: "Feeds", icon: Rss },
     ],

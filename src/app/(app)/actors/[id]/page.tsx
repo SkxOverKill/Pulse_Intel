@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Trash2 } from "lucide-react";
+import { Download, Pencil, Trash2, X } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser, hasRole } from "@/lib/auth/dal";
 import {
@@ -12,8 +12,9 @@ import {
 } from "@/components/ui/primitives";
 import { DetailRow, Muted, PageHeader, SecondaryLink, Tag } from "@/components/ui/page";
 import { Table, Td, Th, Tr } from "@/components/ui/table";
-import { deleteActor } from "../actions";
+import { deleteActor, unlinkTechnique } from "../actions";
 import { AliasManager } from "./alias-manager";
+import { TechniqueMapper } from "./technique-mapper";
 
 export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
@@ -60,6 +61,18 @@ export default async function ActorDetailPage(props: {
 
   const canEdit = user && hasRole(user, "ANALYST");
   const canDelete = user && hasRole(user, "ADMIN");
+
+  // Only techniques not already mapped are offered in the picker.
+  const techniqueOptions = canEdit
+    ? await db.technique.findMany({
+        where: {
+          deprecated: false,
+          id: { notIn: actor.techniques.map((t) => t.techniqueId) },
+        },
+        select: { id: true, attackId: true, name: true },
+        orderBy: { attackId: "asc" },
+      })
+    : [];
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -182,11 +195,22 @@ export default async function ActorDetailPage(props: {
             <CardHeader
               title="ATT&CK techniques"
               hint={`${actor.techniques.length} mapped`}
+              action={
+                actor.techniques.length > 0 ? (
+                  <a
+                    href={`/api/attack/navigator?domain=ENTERPRISE&actorId=${actor.id}`}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface-2 px-2.5 py-1 text-xs text-ink-muted transition-colors hover:text-ink"
+                  >
+                    <Download className="size-3.5" />
+                    Navigator layer
+                  </a>
+                ) : null
+              }
             />
             {actor.techniques.length === 0 ? (
               <EmptyState
                 title="No techniques mapped"
-                description="Technique mapping arrives with the ATT&CK matrix in Phase 3."
+                description="Map techniques by hand below, or run `npm run attack:sync` to import MITRE's own attribution for this group."
               />
             ) : (
               <Table>
@@ -194,28 +218,62 @@ export default async function ActorDetailPage(props: {
                   <tr>
                     <Th>ID</Th>
                     <Th>Technique</Th>
-                    <Th>Tactic</Th>
+                    <Th>Tactics</Th>
                     <Th>Confidence</Th>
                     <Th>Claimed by</Th>
+                    <Th />
                   </tr>
                 </thead>
                 <tbody>
                   {actor.techniques.map((t) => (
                     <Tr key={t.techniqueId}>
-                      <Td className="font-mono text-xs">{t.technique.attackId}</Td>
+                      <Td className="font-mono text-xs">
+                        <Link
+                          href={`/attack/${t.technique.attackId}`}
+                          className="text-ink hover:text-brand"
+                        >
+                          {t.technique.attackId}
+                        </Link>
+                      </Td>
                       <Td>{t.technique.name}</Td>
-                      <Td className="text-xs text-ink-muted">{t.technique.tactic}</Td>
+                      <Td className="text-xs text-ink-muted">
+                        {t.technique.tactics.join(", ") || <Muted>—</Muted>}
+                      </Td>
                       <Td>
                         <ConfidenceBar value={t.confidence} />
                       </Td>
                       <Td className="text-xs text-ink-muted">
-                        {t.addedBy?.name ?? <Muted>—</Muted>}
+                        {/* Imported ATT&CK mappings have no addedBy — they are
+                            MITRE's claim, not an analyst's. */}
+                        {t.addedBy?.name ?? (t.notes ? "MITRE ATT&CK" : <Muted>—</Muted>)}
+                      </Td>
+                      <Td>
+                        {canEdit ? (
+                          <form action={unlinkTechnique}>
+                            <input type="hidden" name="actorId" value={actor.id} />
+                            <input
+                              type="hidden"
+                              name="techniqueId"
+                              value={t.techniqueId}
+                            />
+                            <button
+                              type="submit"
+                              title={`Unmap ${t.technique.attackId}`}
+                              className="grid size-6 place-items-center rounded text-ink-faint hover:bg-surface-2 hover:text-danger"
+                            >
+                              <X className="size-3.5" />
+                            </button>
+                          </form>
+                        ) : null}
                       </Td>
                     </Tr>
                   ))}
                 </tbody>
               </Table>
             )}
+            {canEdit ? (
+              <TechniqueMapper actorId={actor.id} options={techniqueOptions} />
+            ) : null}
           </Card>
 
           <Card>

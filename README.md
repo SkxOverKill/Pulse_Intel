@@ -5,9 +5,9 @@ with bulk enrichment, MITRE ATT&CK mapping, feed ingestion, threat hunting, and 
 
 Full plan and rationale: [`../pulse_intelligence_spec.md`](../pulse_intelligence_spec.md)
 
-**Status: Phases 1–2 of 8 complete.** Foundation, auth, RBAC, audit log, schema and app
-shell; plus CRUD for actors, campaigns, indicators, reports and feeds, IOC bulk import, and
-global search.
+**Status: Phases 1–3 of 8 complete.** Foundation, auth, RBAC, audit log, schema and app
+shell; CRUD for actors, campaigns, indicators, reports and feeds; IOC bulk import; global
+search; and MITRE ATT&CK v19.1 with a navigable matrix and technique mapping.
 
 ## Stack
 
@@ -65,6 +65,28 @@ Password for all three: `PulseAdmin!2026` (override with `SEED_PASSWORD`).
 | `npm run db:studio` | Prisma Studio |
 | `npm run db:migrate` | Standard `prisma migrate dev` (real Postgres only) |
 | `npm run db:migrate:offline -- <name>` | Migration workaround for the dev server — see below |
+| `npm run attack:sync` | Pull MITRE ATT&CK (enterprise; `--all` for every domain) |
+
+## MITRE ATT&CK
+
+```bash
+npm run attack:sync              # enterprise, pinned to v19.1
+npm run attack:sync -- --all     # enterprise + mobile + ICS (~58 MB download)
+```
+
+The version is pinned in `src/lib/attack/stix.ts`. Upgrading is deliberate: MITRE reshapes
+fields between releases — v19 moved detection off the technique object entirely — and
+mappings should never shift because a scheduled job ran.
+
+`--no-groups` skips importing MITRE's own group→technique attribution. Those imports are
+recorded with no `addedById`, so the UI shows them as claimed by "MITRE ATT&CK" rather than
+by an analyst.
+
+**Migration drift warning.** `prisma migrate diff` emits `DROP INDEX` for all 13 raw-SQL
+search indexes on every run, because they don't exist in `schema.prisma`. Applying that
+silently turns every fuzzy and full-text search into a sequential scan.
+`scripts/migrate-offline.ts` refuses to apply such a migration and prints the SQL for you
+to hand-edit. If you switch to `prisma migrate dev`, you must check for this yourself.
 
 ## Two environment gotchas
 
