@@ -24,6 +24,8 @@ const FIELD_NAMES: Record<string, string> = {
   value: "value",
   tag: "tags",
   source: "source",
+  attackTechnique: "attack.technique",
+  attackTactic: "attack.tactic",
   firstSeen: "firstSeen",
   lastSeen: "lastSeen",
 };

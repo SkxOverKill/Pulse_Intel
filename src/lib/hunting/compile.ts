@@ -65,6 +65,67 @@ function compileCondition(c: Condition): Prisma.IndicatorWhereInput {
     case "source":
       return c.op === "neq" ? { sourceId: { not: str } } : { sourceId: str };
 
+    case "attackTechnique": {
+      const needle =
+        c.op === "contains"
+          ? { contains: str, mode: "insensitive" as const }
+          : { equals: str, mode: "insensitive" as const };
+      return {
+        OR: [
+          {
+            actors: {
+              some: {
+                actor: {
+                  techniques: {
+                    some: {
+                      technique: { OR: [{ attackId: needle }, { name: needle }] },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          {
+            campaigns: {
+              some: {
+                campaign: {
+                  techniques: {
+                    some: {
+                      technique: { OR: [{ attackId: needle }, { name: needle }] },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      };
+    }
+
+    case "attackTactic":
+      return {
+        OR: [
+          {
+            actors: {
+              some: {
+                actor: {
+                  techniques: { some: { technique: { tactics: { has: str } } } },
+                },
+              },
+            },
+          },
+          {
+            campaigns: {
+              some: {
+                campaign: {
+                  techniques: { some: { technique: { tactics: { has: str } } } },
+                },
+              },
+            },
+          },
+        ],
+      };
+
     case "firstSeen":
     case "lastSeen": {
       // A bare YYYY-MM-DD is midnight UTC; "before 2026-01-01" should include

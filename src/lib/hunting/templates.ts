@@ -61,6 +61,19 @@ export const HUNT_TEMPLATES: readonly HuntTemplate[] = [
       ],
     },
   },
+  {
+    id: "initial-access-network-iocs",
+    name: "Initial access network IOCs",
+    description: "Network indicators linked to initial-access tradecraft.",
+    ast: {
+      entity: "indicator",
+      match: "all",
+      conditions: [
+        { field: "type", op: "in", value: ["DOMAIN", "URL", "IPV4", "IPV6"] },
+        { field: "attackTactic", op: "has", value: "initial-access" },
+      ],
+    },
+  },
 ] as const;
 
 export function huntTemplateById(id: string): HuntTemplate | undefined {

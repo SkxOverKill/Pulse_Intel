@@ -146,6 +146,20 @@ export const HUNT_FIELDS: readonly FieldDef[] = [
     ops: ["eq", "neq"],
   },
   {
+    key: "attackTechnique",
+    label: "ATT&CK technique",
+    type: "text",
+    ops: ["eq", "contains"],
+    hint: "T1059 or command and scripting interpreter",
+  },
+  {
+    key: "attackTactic",
+    label: "ATT&CK tactic",
+    type: "tag",
+    ops: ["has"],
+    hint: "initial-access, execution, persistence",
+  },
+  {
     key: "firstSeen",
     label: "First seen",
     type: "date",

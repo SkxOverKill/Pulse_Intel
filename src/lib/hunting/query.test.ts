@@ -191,6 +191,32 @@ describe("compileWhere", () => {
     const frag = (inner.AND as { firstSeen: { gte: Date } }[])[0];
     expect(frag.firstSeen.gte.toISOString()).toBe("2026-01-02T00:00:00.000Z");
   });
+
+  it("hunts indicators through actor and campaign ATT&CK technique mappings", () => {
+    const where = compileWhere(
+      ok({
+        entity: "indicator",
+        conditions: [{ field: "attackTechnique", op: "eq", value: "T1059" }],
+      }),
+    );
+    const inner = (where.AND as Record<string, unknown>[])[1];
+    const frag = (inner.AND as Record<string, unknown>[])[0];
+    expect(frag).toHaveProperty("OR");
+  });
+
+  it("hunts indicators by ATT&CK tactic", () => {
+    const where = compileWhere(
+      ok({
+        entity: "indicator",
+        conditions: [
+          { field: "attackTactic", op: "has", value: "initial-access" },
+        ],
+      }),
+    );
+    const inner = (where.AND as Record<string, unknown>[])[1];
+    const frag = (inner.AND as Record<string, unknown>[])[0];
+    expect(JSON.stringify(frag)).toContain("initial-access");
+  });
 });
 
 describe("describeHunt", () => {
