@@ -66,8 +66,15 @@ export type StixObject = {
 
 export type StixBundle = { type: string; objects: StixObject[] };
 
+/**
+ * STIX source/kill-chain names for the supported ATT&CK domains. The mobile
+ * and ICS bundles use their own names ("mitre-mobile-attack",
+ * "mitre-ics-attack") instead of the enterprise "mitre-attack".
+ */
+const MITRE_SOURCE_NAMES = new Set(["mitre-attack", "mitre-mobile-attack", "mitre-ics-attack"]);
+
 export function attackId(o: StixObject): string | null {
-  const ref = o.external_references?.find((r) => r.source_name === "mitre-attack");
+  const ref = o.external_references?.find((r) => MITRE_SOURCE_NAMES.has(r.source_name));
   return ref?.external_id ?? null;
 }
 
@@ -209,7 +216,7 @@ export function parseBundle(bundle: StixBundle): ParsedBundle {
       name: o.name ?? id,
       description: o.description ?? null,
       tactics: (o.kill_chain_phases ?? [])
-        .filter((k) => k.kill_chain_name === "mitre-attack")
+        .filter((k) => MITRE_SOURCE_NAMES.has(k.kill_chain_name))
         .map((k) => k.phase_name),
       platforms: o.x_mitre_platforms ?? [],
       dataSources: det ? [...det.sources].sort() : [],

@@ -193,8 +193,9 @@ export function parseBulk(input: string): BulkParseResult {
       const trimmed = line.trim();
       if (!trimmed || trimmed.startsWith("#")) return [];
       // Only split on delimiters when they're actually separating tokens —
-      // commas appear inside URLs, so require whitespace or multiple fields.
-      return trimmed.split(/[\t;,]+|\s{2,}/);
+      // commas appear inside URLs, so only treat a comma as a separator when
+      // whitespace follows it.
+      return trimmed.split(/[\t;]+|\s{2,}|,\s+/);
     })
     .map((t) => t.trim())
     .filter(Boolean);

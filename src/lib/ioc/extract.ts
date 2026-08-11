@@ -297,8 +297,9 @@ export function extractIocs(
   if (!isProse) {
     // Line mode
     for (const line of lines) {
-      // Handle comma/tab-separated values on a single line.
-      const tokens = line.split(/[,\t]+/).map((t) => t.trim()).filter(Boolean);
+      // Handle comma/tab-separated values on a single line. Commas inside
+      // URLs must not split, so require whitespace after a comma.
+      const tokens = line.split(/[\t]+|,\s+/).map((t) => t.trim()).filter(Boolean);
       let lineHit = false;
       for (const token of tokens) {
         const result = classifyLine(token);

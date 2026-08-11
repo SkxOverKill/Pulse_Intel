@@ -121,6 +121,18 @@ describe("toStixBundle", () => {
     expect(a).toBe(b);
     expect(a).toMatch(/^indicator--[0-9a-f-]{36}$/);
   });
+
+  it("marks AMBER_STRICT with the TLP 2.0 AMBER+STRICT marking, not AMBER's", () => {
+    const amber = JSON.parse(toStixBundle([ind({ tlp: "AMBER" })])).objects[0];
+    const strict = JSON.parse(toStixBundle([ind({ tlp: "AMBER_STRICT" })])).objects[0];
+    expect(amber.object_marking_refs).toContain(
+      "marking-definition--f88d31f6-486f-44da-b317-01333bde0b82",
+    );
+    expect(strict.object_marking_refs).toContain(
+      "marking-definition--939a9414-2ddd-4d32-a0cd-375ea402b003",
+    );
+    expect(strict.object_marking_refs).not.toEqual(amber.object_marking_refs);
+  });
 });
 
 describe("toMispEvent", () => {
