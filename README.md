@@ -25,6 +25,7 @@ deeper security review.
 
 See [`HISTORY.md`](HISTORY.md) for the development timeline and public-release cleanup notes.
 See [`ROADMAP.md`](ROADMAP.md) for planned hardening and community work.
+See [`CHANGELOG.md`](CHANGELOG.md) for release notes.
 
 ## Stack
 
