@@ -8,6 +8,33 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: pulse
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d pulse"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/pulse
+      REDIS_URL: redis://localhost:6379
+      SESSION_SECRET: ci-only-not-a-real-secret
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -38,7 +65,3 @@ jobs:
 
       - name: Build
         run: npm run build
-        env:
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/pulse
-          REDIS_URL: redis://localhost:6379
-          SESSION_SECRET: ci-only-not-a-real-secret
