@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertTriangle, Bell, Pencil, Play } from "lucide-react";
+import { AlertTriangle, Bell, Download, Pencil, Play } from "lucide-react";
 import type { Severity } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { getCurrentUser, hasRole } from "@/lib/auth/dal";
@@ -82,6 +82,10 @@ export default async function HuntDetailPage({
             <SecondaryLink href={`/hunting/${hunt.id}/edit`}>
               <Pencil className="size-4" />
               Edit
+            </SecondaryLink>
+            <SecondaryLink href={`/hunting/${hunt.id}/export?format=csv`}>
+              <Download className="size-4" />
+              Export CSV
             </SecondaryLink>
             <form action={deleteHunt}>
               <input type="hidden" name="id" value={hunt.id} />

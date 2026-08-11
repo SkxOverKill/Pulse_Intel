@@ -12,6 +12,7 @@ exports, and scheduled intelligence reports from one practical workspace.
 - Ingest public feeds from CISA KEV, NVD, FIRST EPSS, abuse.ch, OTX, vendor blogs, and security news.
 - Enrich indicators with OTX, AbuseIPDB, and VirusTotal behind Redis-backed quota controls.
 - Build saved threat hunts over indicator fields and alert on new matches.
+- Export saved hunt matches for downstream blocking, reports, and tickets.
 - Export filtered IOCs as CSV, STIX 2.1, MISP JSON, and Snort/Suricata rules.
 - Expose scoped API keys for read-only programmatic access.
 - Generate scheduled Markdown reports from new indicators, KEV additions, hunt alerts, and feed health.
