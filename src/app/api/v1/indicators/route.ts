@@ -107,26 +107,32 @@ export async function GET(req: NextRequest) {
   if (format !== "json") {
     const meta = EXPORT_FORMATS.find((f) => f.id === format)!;
     return new NextResponse(formatExport(indicators, format), {
-      headers: { "Content-Type": `${meta.contentType}; charset=utf-8` },
+      headers: {
+        ...auth.headers,
+        "Content-Type": `${meta.contentType}; charset=utf-8`,
+      },
     });
   }
 
-  return NextResponse.json({
-    data: rows.map((r) => ({
-      id: r.id,
-      type: r.type,
-      value: r.value,
-      confidence: r.confidence,
-      severity: r.severity,
-      tlp: r.tlp,
-      tags: r.tags,
-      source: r.source?.name ?? null,
-      firstSeen: r.firstSeen,
-      lastSeen: r.lastSeen,
-      expiresAt: r.expiresAt,
-    })),
-    page,
-    pageSize,
-    total,
-  });
+  return NextResponse.json(
+    {
+      data: rows.map((r) => ({
+        id: r.id,
+        type: r.type,
+        value: r.value,
+        confidence: r.confidence,
+        severity: r.severity,
+        tlp: r.tlp,
+        tags: r.tags,
+        source: r.source?.name ?? null,
+        firstSeen: r.firstSeen,
+        lastSeen: r.lastSeen,
+        expiresAt: r.expiresAt,
+      })),
+      page,
+      pageSize,
+      total,
+    },
+    { headers: auth.headers },
+  );
 }

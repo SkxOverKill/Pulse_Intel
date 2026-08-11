@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireApiKey } from "@/lib/api/auth";
+import { activeIndicatorWhere } from "@/lib/ioc/decay";
 
 /**
  * GET /api/v1/indicators/:id
@@ -18,8 +19,11 @@ export async function GET(
   if (!auth.ok) return auth.response;
 
   const { id } = await params;
-  const indicator = await db.indicator.findUnique({
-    where: { id },
+  const indicator = await db.indicator.findFirst({
+    where: {
+      id,
+      ...activeIndicatorWhere(),
+    },
     include: {
       source: { select: { name: true } },
       enrichments: {
@@ -29,22 +33,29 @@ export async function GET(
   });
 
   if (!indicator || indicator.whitelisted) {
-    return NextResponse.json({ error: "Indicator not found." }, { status: 404 });
+    return NextResponse.json(
+      { error: "Indicator not found." },
+      { status: 404, headers: auth.headers },
+    );
   }
 
-  return NextResponse.json({
-    data: {
-      id: indicator.id,
-      type: indicator.type,
-      value: indicator.value,
-      confidence: indicator.confidence,
-      severity: indicator.severity,
-      tlp: indicator.tlp,
-      tags: indicator.tags,
-      source: indicator.source?.name ?? null,
-      firstSeen: indicator.firstSeen,
-      lastSeen: indicator.lastSeen,
-      enrichments: indicator.enrichments,
+  return NextResponse.json(
+    {
+      data: {
+        id: indicator.id,
+        type: indicator.type,
+        value: indicator.value,
+        confidence: indicator.confidence,
+        severity: indicator.severity,
+        tlp: indicator.tlp,
+        tags: indicator.tags,
+        source: indicator.source?.name ?? null,
+        firstSeen: indicator.firstSeen,
+        lastSeen: indicator.lastSeen,
+        expiresAt: indicator.expiresAt,
+        enrichments: indicator.enrichments,
+      },
     },
-  });
+    { headers: auth.headers },
+  );
 }

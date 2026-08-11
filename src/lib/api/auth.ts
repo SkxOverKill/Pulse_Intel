@@ -6,6 +6,7 @@ import { hashApiKey, parseBearerToken } from "@/lib/auth/apikey";
 import {
   checkPublicApiRateLimit,
   getPublicApiRateLimitConfig,
+  publicApiRateLimitHeaders,
   publicApiRateLimitResponse,
 } from "@/lib/api/rate-limit";
 
@@ -26,7 +27,7 @@ export type ApiPrincipal = {
 };
 
 export type ApiAuthResult =
-  | { ok: true; principal: ApiPrincipal }
+  | { ok: true; principal: ApiPrincipal; headers: Record<string, string> }
   | { ok: false; response: NextResponse };
 
 function unauthorized(message: string): ApiAuthResult {
@@ -76,6 +77,7 @@ export async function requireApiKey(
   }
 
   const rateLimitConfig = getPublicApiRateLimitConfig();
+  let headers: Record<string, string> = {};
   try {
     const rateLimit = await checkPublicApiRateLimit(key.id, rateLimitConfig);
     if (!rateLimit.allowed) {
@@ -84,6 +86,7 @@ export async function requireApiKey(
         response: publicApiRateLimitResponse(rateLimitConfig, rateLimit),
       };
     }
+    headers = publicApiRateLimitHeaders(rateLimitConfig, rateLimit);
   } catch (err) {
     console.error("[api] rate limit check failed", err);
   }
@@ -97,5 +100,6 @@ export async function requireApiKey(
   return {
     ok: true,
     principal: { apiKeyId: key.id, userId: key.user.id, scopes: key.scopes },
+    headers,
   };
 }

@@ -35,24 +35,27 @@ export async function GET(req: NextRequest) {
     db.threatActor.count({ where }),
   ]);
 
-  return NextResponse.json({
-    data: rows.map((a) => ({
-      id: a.id,
-      name: a.name,
-      slug: a.slug,
-      attackGroupId: a.attackGroupId,
-      country: a.country,
-      motivation: a.motivation,
-      sophistication: a.sophistication,
-      active: a.active,
-      confidence: a.confidence,
-      tlp: a.tlp,
-      aliases: a.aliases,
-      firstSeen: a.firstSeen,
-      lastSeen: a.lastSeen,
-    })),
-    page,
-    pageSize,
-    total,
-  });
+  return NextResponse.json(
+    {
+      data: rows.map((a) => ({
+        id: a.id,
+        name: a.name,
+        slug: a.slug,
+        attackGroupId: a.attackGroupId,
+        country: a.country,
+        motivation: a.motivation,
+        sophistication: a.sophistication,
+        active: a.active,
+        confidence: a.confidence,
+        tlp: a.tlp,
+        aliases: a.aliases,
+        firstSeen: a.firstSeen,
+        lastSeen: a.lastSeen,
+      })),
+      page,
+      pageSize,
+      total,
+    },
+    { headers: auth.headers },
+  );
 }
