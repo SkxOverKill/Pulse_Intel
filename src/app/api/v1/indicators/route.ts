@@ -12,6 +12,7 @@ import {
   parsePageParams,
   parseSeverity,
 } from "@/lib/api/query";
+import { activeIndicatorWhere } from "@/lib/ioc/decay";
 
 const PAGE_SIZE_DEFAULT = 100;
 const PAGE_SIZE_MAX = 500;
@@ -49,9 +50,11 @@ export async function GET(req: NextRequest) {
   const severity = parseSeverity(params.get("severity"));
   if (!severity.ok) return severity.response;
   const tag = params.get("tag");
+  const now = new Date();
 
   const where = {
     whitelisted: false,
+    ...activeIndicatorWhere(now),
     ...(q ? { normalizedValue: { contains: q.toLowerCase() } } : {}),
     ...(type.value ? { type: type.value } : {}),
     ...(severity.value ? { severity: severity.value } : {}),
@@ -80,6 +83,7 @@ export async function GET(req: NextRequest) {
         tags: true,
         firstSeen: true,
         lastSeen: true,
+        expiresAt: true,
         source: { select: { name: true } },
       },
     }),
@@ -96,6 +100,7 @@ export async function GET(req: NextRequest) {
     tags: r.tags,
     firstSeen: r.firstSeen,
     lastSeen: r.lastSeen,
+    expiresAt: r.expiresAt,
     source: r.source?.name ?? null,
   }));
 
@@ -118,6 +123,7 @@ export async function GET(req: NextRequest) {
       source: r.source?.name ?? null,
       firstSeen: r.firstSeen,
       lastSeen: r.lastSeen,
+      expiresAt: r.expiresAt,
     })),
     page,
     pageSize,

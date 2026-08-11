@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/primitives";
 import { Pagination, Table, Td, Th, Tr } from "@/components/ui/table";
 import { Muted, PageHeader, Tag } from "@/components/ui/page";
+import { activeIndicatorWhere } from "@/lib/ioc/decay";
 import { IndicatorFilters } from "./filters";
 import { ExportMenu } from "./export-menu";
 
@@ -32,6 +33,7 @@ export default async function IndicatorsPage(props: {
   const params = await props.searchParams;
   const user = await getCurrentUser();
   const page = Math.max(1, Number(params.page) || 1);
+  const now = new Date();
 
   const where = {
     ...(params.q
@@ -42,6 +44,7 @@ export default async function IndicatorsPage(props: {
     // Whitelisted IOCs are hidden by default — they are noise in the working
     // view, but must stay findable to explain why something was not exported.
     whitelisted: params.whitelisted === "true",
+    ...activeIndicatorWhere(now),
   };
 
   const [indicators, total, whitelistedCount] = await Promise.all([
@@ -108,6 +111,7 @@ export default async function IndicatorsPage(props: {
                   <Th>Source</Th>
                   <Th>Tags</Th>
                   <Th>Last seen</Th>
+                  <Th>Expires</Th>
                   <Th>TLP</Th>
                 </tr>
               </thead>
@@ -150,6 +154,13 @@ export default async function IndicatorsPage(props: {
                     </Td>
                     <Td className="tabular text-xs text-ink-muted">
                       {i.lastSeen.toISOString().slice(0, 10)}
+                    </Td>
+                    <Td className="tabular text-xs text-ink-muted">
+                      {i.expiresAt ? (
+                        i.expiresAt.toISOString().slice(0, 10)
+                      ) : (
+                        <Muted>never</Muted>
+                      )}
                     </Td>
                     <Td>
                       <TlpBadge tlp={i.tlp} />

@@ -19,8 +19,8 @@ exports, and scheduled intelligence reports from one practical workspace.
 
 ## Status
 
-Phases 1-7 of 8 are implemented. Phase 8 is hardening: rate limits on public API routes,
-backup/restore, indicator decay, large-table partitioning, and deeper security review.
+Phases 1-7 of 8 are implemented. Phase 8 is hardening: backup/restore, large-table
+partitioning, and deeper security review.
 
 See [`HISTORY.md`](HISTORY.md) for the development timeline and public-release cleanup notes.
 
@@ -163,6 +163,8 @@ and migration guidance.
 - Attribution is opinion: relation tables carry confidence and who added the claim.
 - Whitelisting is load-bearing: whitelisted IOCs are stored for review but never exported,
   alerted on, matched by hunts, or enriched.
+- Source decay is enforced: indicators inherit source half-life at ingest and expire out of
+  working views, exports, and public API responses.
 - Quotas are visible: bulk enrichment exposes real free-tier constraints instead of pretending
   large batches finish instantly.
 - Report bodies render as text, not HTML, because reports contain attacker-controlled strings.

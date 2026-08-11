@@ -5,6 +5,7 @@
 // bundle can pull in.
 import type { Severity, Tlp } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
+import { indicatorExpiresAt } from "@/lib/ioc/decay";
 import { parseBulk, type ParsedIndicator } from "@/lib/ioc/normalize";
 import { whitelistReason } from "@/lib/ioc/whitelist";
 
@@ -62,6 +63,15 @@ export async function ingestParsed(
   if (parsed.length === 0) return report;
 
   const now = new Date();
+  const source =
+    options.sourceId ?
+      await db.source.findUnique({
+        where: { id: options.sourceId },
+        select: { decayHalfLifeDays: true },
+      })
+    : null;
+  const expiresAt =
+    options.sourceId ? indicatorExpiresAt(now, source?.decayHalfLifeDays) : undefined;
 
   // Find which of these already exist, in one query rather than N.
   const existing = await db.indicator.findMany({
@@ -103,6 +113,7 @@ export async function ingestParsed(
         tags: options.tags ?? [],
         sourceId: options.sourceId ?? null,
         whitelisted: Boolean(reason),
+        expiresAt: expiresAt ?? null,
       };
     });
 
@@ -122,7 +133,7 @@ export async function ingestParsed(
     // Re-seeing an indicator is meaningful signal: it is still live.
     await db.indicator.updateMany({
       where: { id: { in: toTouch } },
-      data: { lastSeen: now },
+      data: { lastSeen: now, ...(options.sourceId ? { expiresAt } : {}) },
     });
     report.updated += toTouch.length;
   }

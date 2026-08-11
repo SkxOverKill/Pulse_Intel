@@ -9,6 +9,7 @@ import {
   type ExportIndicator,
 } from "@/lib/export/formats";
 import { parseIndicatorType, parseSeverity } from "@/lib/api/query";
+import { activeIndicatorWhere } from "@/lib/ioc/decay";
 
 // A single export must not try to serialize the entire table into memory. This
 // is generous for a working set; a full-database dump is a Phase 8 streaming
@@ -40,9 +41,11 @@ export async function GET(req: NextRequest) {
   if (!type.ok) return type.response;
   const severity = parseSeverity(params.get("severity"));
   if (!severity.ok) return severity.response;
+  const now = new Date();
 
   const where = {
     whitelisted: false,
+    ...activeIndicatorWhere(now),
     ...(q ? { normalizedValue: { contains: q.toLowerCase() } } : {}),
     ...(type.value ? { type: type.value } : {}),
     ...(severity.value ? { severity: severity.value } : {}),
