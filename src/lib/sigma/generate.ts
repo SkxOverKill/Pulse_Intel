@@ -242,7 +242,9 @@ const TECHNIQUE_DETECTIONS: Record<string, TechniqueDetection> = {
   },
   // Web shell
   "T1505.003": {
-    logsource: { category: "webserver", product: "windows" },
+    // Matches what build() emits below — a webserver-category logsource here
+    // would be dead config that silently disagrees with the generated rule.
+    logsource: { category: "file_event", product: "windows" },
     build: (actor, tid, tname, confidence) => ({
       ...base(
         `${actor} — Web Shell Activity (${tid})`,
