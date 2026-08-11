@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useMemo, useTransition } from "react";
+import { useActionState, useState, useMemo, useTransition, useEffect } from "react";
 import Link from "next/link";
 import { CheckCircle2, FileSearch, ShieldOff, TriangleAlert, Zap } from "lucide-react";
 import {
@@ -88,13 +88,13 @@ const TYPE_COLORS: Record<string, string> = {
   FILENAME: "bg-green-500/10 text-green-400 border-green-500/20",
 };
 
-// Debounce extraction so it doesn't fire on every keystroke.
+// Debounce hook — delays updating debounced value until ms after last change.
 function useDebounce<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
-  useState(() => {
+  useEffect(() => {
     const t = setTimeout(() => setDebounced(value), ms);
     return () => clearTimeout(t);
-  });
+  }, [value, ms]);
   return debounced;
 }
 
@@ -116,13 +116,16 @@ export function ImportForm({
   });
 
   const [text, setText] = useState("");
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
+
+  // Debounce so extraction doesn't run on every single keystroke.
+  const debouncedText = useDebounce(text, 300);
 
   // Extract live — runs in browser, no round-trip.
   const preview = useMemo(() => {
-    if (!text.trim()) return null;
-    return extractIocs(text);
-  }, [text]);
+    if (!debouncedText.trim()) return null;
+    return extractIocs(debouncedText);
+  }, [debouncedText]);
 
   const errors = !state.ok ? state.fieldErrors : undefined;
   const report = state.ok && state.data.total > 0 ? state.data : null;
@@ -169,7 +172,7 @@ export function ImportForm({
                 preview={preview}
                 sortedTypes={sortedTypes}
               />
-            ) : text.trim().length > 20 && preview && preview.total === 0 ? (
+            ) : debouncedText.trim().length > 20 && preview && preview.total === 0 ? (
               <div className="flex items-center gap-2 rounded-md border border-line bg-surface-2 px-3 py-2.5 text-xs text-ink-muted">
                 <FileSearch className="size-3.5 shrink-0" />
                 No recognizable indicators found yet — keep typing or paste a

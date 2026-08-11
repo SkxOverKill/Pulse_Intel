@@ -13,6 +13,7 @@
  * Unknown providers fall through to the generic card.
  */
 
+import type { ReactNode } from "react";
 import { AlertTriangle, CheckCircle2, HelpCircle, Shield, XCircle } from "lucide-react";
 
 type Verdict = "MALICIOUS" | "SUSPICIOUS" | "BENIGN" | "UNKNOWN";
@@ -352,7 +353,7 @@ function ProviderCard({
 }: {
   row: EnrichmentRow;
   label: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   const now = new Date();
   const fresh = row.expiresAt > now;

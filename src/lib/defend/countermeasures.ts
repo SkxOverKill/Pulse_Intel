@@ -65,7 +65,7 @@ export const DEFEND_MAP: Record<string, D3fendCountermeasure[]> = {
   // T1055 — Process Injection
   "T1055": [
     { d3fend_id: "D3-PA",   label: "Process Spawn Analysis",      definition: "Detect anomalous CreateRemoteThread and WriteProcessMemory calls.", category: "Detect" },
-    { d3fend_id: "D3-IOPAR","label: Mandatory Access Control",    definition: "Apply process isolation via SELinux/AppArmor or Windows Integrity Levels.", category: "Harden" },
+    { d3fend_id: "D3-IOPAR", label: "Mandatory Access Control",    definition: "Apply process isolation via SELinux/AppArmor or Windows Integrity Levels.", category: "Harden" },
   ],
   // T1547 — Boot or Logon Autostart Execution
   "T1547.001": [
@@ -85,13 +85,13 @@ export const DEFEND_MAP: Record<string, D3fendCountermeasure[]> = {
   ],
   // T1190 — Exploit Public-Facing Application
   "T1190": [
-    { d3fend_id: "D3-WAFAR","label: Web Application Firewall",    definition: "Deploy WAF rules to block exploitation attempts against public-facing services.", category: "Harden" },
-    { d3fend_id: "D3-IOPAR","label: Network Traffic Analysis",    definition: "Monitor for anomalous HTTP requests matching known CVE exploit patterns.", category: "Detect" },
+    { d3fend_id: "D3-WAFAR", label: "Web Application Firewall",    definition: "Deploy WAF rules to block exploitation attempts against public-facing services.", category: "Harden" },
+    { d3fend_id: "D3-IOPAR", label: "Network Traffic Analysis",    definition: "Monitor for anomalous HTTP requests matching known CVE exploit patterns.", category: "Detect" },
     { d3fend_id: "D3-PM",   label: "Patch Management",            definition: "Maintain patch currency on all internet-facing systems — this technique is almost always paired with a specific CVE.", category: "Harden" },
   ],
   // T1021 — Remote Services
   "T1021.001": [
-    { d3fend_id: "D3-IOPAR","label: Remote Desktop Protocol Audit", definition: "Restrict RDP to jump servers and VPN; alert on any direct inbound RDP from the internet.", category: "Harden" },
+    { d3fend_id: "D3-IOPAR", label: "Remote Desktop Protocol Audit", definition: "Restrict RDP to jump servers and VPN; alert on any direct inbound RDP from the internet.", category: "Harden" },
     { d3fend_id: "D3-LNCA", label: "Local Network Connection Analysis", definition: "Detect lateral RDP from workstations (peer-to-peer RDP is almost always malicious).", category: "Detect" },
   ],
   "T1021.002": [
@@ -106,12 +106,12 @@ export const DEFEND_MAP: Record<string, D3fendCountermeasure[]> = {
   ],
   // T1505 — Server Software Component (Web Shell)
   "T1505.003": [
-    { d3fend_id: "D3-IOPAR","label: Web Application Hardening",   definition: "Disable script execution in web-root directories; restrict which file types can be uploaded.", category: "Harden" },
+    { d3fend_id: "D3-IOPAR", label: "Web Application Hardening",   definition: "Disable script execution in web-root directories; restrict which file types can be uploaded.", category: "Harden" },
     { d3fend_id: "D3-PA",   label: "Process Spawn Analysis",      definition: "Detect web server processes (IIS, Apache, nginx) spawning shells or script interpreters.", category: "Detect" },
   ],
   // T1071 — Application Layer Protocol (C2)
   "T1071.001": [
-    { d3fend_id: "D3-DNSAL","label: DNS Traffic Analysis",        definition: "Detect DNS exfiltration and DGA-generated domains used for C2.", category: "Detect" },
+    { d3fend_id: "D3-DNSAL", label: "DNS Traffic Analysis",        definition: "Detect DNS exfiltration and DGA-generated domains used for C2.", category: "Detect" },
     { d3fend_id: "D3-UR",   label: "URL Reputation Analysis",     definition: "Block connections to newly-registered or low-reputation domains from endpoints.", category: "Harden" },
     { d3fend_id: "D3-NIA",  label: "Network Intrusion Analysis",  definition: "Apply IDS/IPS signatures for known C2 frameworks (Cobalt Strike, Sliver, Havoc).", category: "Detect" },
   ],
