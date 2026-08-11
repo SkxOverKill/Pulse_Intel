@@ -1,0 +1,296 @@
+openapi: 3.1.0
+info:
+  title: Pulse Intelligence API
+  version: 0.1.0
+  description: Read-only API for Pulse Intelligence threat actors and indicators.
+servers:
+  - url: https://your-pulse-host.example
+    description: Self-hosted deployment
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    IndicatorPageSize:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+        default: 100
+    ActorPageSize:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+    Indicator:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        value:
+          type: string
+        confidence:
+          type: integer
+          minimum: 0
+          maximum: 100
+        severity:
+          type: string
+        tlp:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        source:
+          type:
+            - string
+            - "null"
+        firstSeen:
+          type: string
+          format: date-time
+        lastSeen:
+          type: string
+          format: date-time
+        expiresAt:
+          type:
+            - string
+            - "null"
+          format: date-time
+      required:
+        - id
+        - type
+        - value
+        - confidence
+        - severity
+        - tlp
+        - tags
+        - source
+        - firstSeen
+        - lastSeen
+    Actor:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        attackGroupId:
+          type:
+            - string
+            - "null"
+        country:
+          type:
+            - string
+            - "null"
+        motivation:
+          type: string
+        sophistication:
+          type:
+            - string
+            - "null"
+        active:
+          type: boolean
+        confidence:
+          type: integer
+        tlp:
+          type: string
+        aliases:
+          type: array
+          items:
+            type: object
+            properties:
+              alias:
+                type: string
+              namedBy:
+                type:
+                  - string
+                  - "null"
+      required:
+        - id
+        - name
+        - slug
+        - active
+        - confidence
+        - tlp
+        - aliases
+paths:
+  /api/health:
+    get:
+      security: []
+      summary: Check service health
+      parameters:
+        - name: deep
+          in: query
+          schema:
+            type: string
+            enum: ["1"]
+      responses:
+        "200":
+          description: Service is healthy
+        "503":
+          description: Dependency check failed
+  /api/v1/indicators:
+    get:
+      summary: List indicators
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/IndicatorPageSize"
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: severity
+          in: query
+          schema:
+            type: string
+            enum: [INFO, LOW, MEDIUM, HIGH, CRITICAL]
+        - name: tag
+          in: query
+          schema:
+            type: string
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json, csv, stix, misp, snort]
+            default: json
+      responses:
+        "200":
+          description: Indicator list or export body
+          headers:
+            X-RateLimit-Limit:
+              schema:
+                type: string
+            X-RateLimit-Remaining:
+              schema:
+                type: string
+            X-RateLimit-Reset:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Indicator"
+                  page:
+                    type: integer
+                  pageSize:
+                    type: integer
+                  total:
+                    type: integer
+        "400":
+          description: Invalid query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid API key
+        "403":
+          description: API key lacks the required scope
+        "429":
+          description: API key exceeded rate limit
+  /api/v1/indicators/{id}:
+    get:
+      summary: Get an indicator
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Indicator detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Indicator"
+        "404":
+          description: Indicator not found, whitelisted, or expired
+  /api/v1/actors:
+    get:
+      summary: List threat actors
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/ActorPageSize"
+        - name: active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Actor list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Actor"
+                  page:
+                    type: integer
+                  pageSize:
+                    type: integer
+                  total:
+                    type: integer
+  /api/v1/actors/{id}:
+    get:
+      summary: Get a threat actor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Actor detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Actor"
+        "404":
+          description: Actor not found

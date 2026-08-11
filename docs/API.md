@@ -3,6 +3,8 @@
 The public API is read-only and intended for analyst scripts, SOAR playbooks, internal tools,
 and integrations that need trusted CTI data without scraping the UI.
 
+An OpenAPI 3.1 definition is available at [`docs/openapi.yaml`](openapi.yaml).
+
 ## Authentication
 
 Create an API key from `/settings`, then send it as a bearer token:
