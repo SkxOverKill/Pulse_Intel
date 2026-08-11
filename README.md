@@ -19,8 +19,8 @@ exports, and scheduled intelligence reports from one practical workspace.
 
 ## Status
 
-Phases 1-7 of 8 are implemented. Phase 8 is hardening: backup/restore, large-table
-partitioning, and deeper security review.
+Phases 1-7 of 8 are implemented. Phase 8 is hardening: large-table partitioning and
+deeper security review.
 
 See [`HISTORY.md`](HISTORY.md) for the development timeline and public-release cleanup notes.
 
@@ -158,6 +158,8 @@ npm run worker
 Use a process manager such as `systemd`, `pm2`, or a platform supervisor. See
 [`DEPLOYMENT.md`](DEPLOYMENT.md) for host setup, Cloudflare tunnel notes, environment variables,
 and migration guidance.
+
+For database operations, see [`docs/BACKUP_RESTORE.md`](docs/BACKUP_RESTORE.md).
 
 ## Design Rules
 
