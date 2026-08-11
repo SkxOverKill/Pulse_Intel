@@ -5,6 +5,7 @@ import { Card, ConfidenceBar, EmptyState, TlpBadge } from "@/components/ui/primi
 import { Pagination, Table, Td, Th, Tr } from "@/components/ui/table";
 import { Muted, NewButton, PageHeader, Tag } from "@/components/ui/page";
 import { ActorFilters } from "./filters";
+import { ActorComparePicker } from "./compare-picker";
 
 export const metadata = { title: "Threat Actors · Pulse Intelligence" };
 
@@ -68,9 +69,12 @@ export default async function ActorsPage(props: {
         title="Threat Actors"
         description="Tracked APT groups and criminal actors."
         action={
-          user && hasRole(user, "ANALYST") ? (
-            <NewButton href="/actors/new" label="New actor" />
-          ) : null
+          <div className="flex shrink-0 items-center gap-2">
+            <ActorComparePicker actors={actors.map((a) => ({ id: a.id, name: a.name }))} />
+            {user && hasRole(user, "ANALYST") ? (
+              <NewButton href="/actors/new" label="New actor" />
+            ) : null}
+          </div>
         }
       />
 
