@@ -2,12 +2,7 @@ import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 // Prisma 7 requires an explicit driver adapter — the bundled query engine is gone.
-function createClient() {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error("DATABASE_URL is not set. Copy .env.example to .env.");
-  }
-
+function createClient(connectionString: string) {
   return new PrismaClient({
     // Explicit, bounded pool. `prisma dev` recommends max 10.
     //
@@ -35,8 +30,27 @@ const globalForPrisma = globalThis as unknown as {
   prisma: ReturnType<typeof createClient> | undefined;
 };
 
-export const db = globalForPrisma.prisma ?? createClient();
+function getDb(): ReturnType<typeof createClient> {
+  const cached = globalForPrisma.prisma;
+  if (cached) return cached;
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = db;
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is not set. Copy .env.example to .env.");
+  }
+
+  const client = createClient(connectionString);
+  if (process.env.NODE_ENV !== "production") {
+    globalForPrisma.prisma = client;
+  }
+  return client;
 }
+
+// Lazily initialised on first property access. Module load must not throw when
+// DATABASE_URL is absent, or `next build` — which evaluates route modules while
+// collecting page data — fails on a machine that hasn't stood up Postgres yet
+// (a documented README sanity check). The connection is created, and the clear
+// error thrown, on the first actual database call instead.
+export const db = new Proxy({} as ReturnType<typeof createClient>, {
+  get: (_target, prop) => Reflect.get(getDb(), prop),
+});
