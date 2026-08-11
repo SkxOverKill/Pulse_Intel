@@ -15,6 +15,10 @@ import { Table, Td, Th, Tr } from "@/components/ui/table";
 import { DetailRow, Muted, SecondaryLink } from "@/components/ui/page";
 import { validateHuntQuery, describeHunt } from "@/lib/hunting/schema";
 import { previewHunt } from "@/lib/hunting/run";
+import {
+  DETECTION_LANGUAGES,
+  compileDetectionQuery,
+} from "@/lib/hunting/detections";
 import { deleteHunt, runHuntNow } from "../actions";
 
 export async function generateMetadata({
@@ -171,6 +175,26 @@ export default async function HuntDetailPage({
               </ul>
             )}
           </Card>
+
+          {validated.ok ? (
+            <Card>
+              <CardHeader title="Detection queries" hint="portable SIEM query drafts" />
+              <div className="space-y-3 p-4">
+                {DETECTION_LANGUAGES.map((language) => (
+                  <div key={language.id}>
+                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
+                      {language.label}
+                    </div>
+                    <textarea
+                      readOnly
+                      value={compileDetectionQuery(validated.ast, language.id)}
+                      className="min-h-20 w-full resize-y rounded-md border border-line bg-base p-2 font-mono text-[11px] text-ink outline-none"
+                    />
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : null}
         </div>
 
         <div className="lg:col-span-2">
