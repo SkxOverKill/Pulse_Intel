@@ -23,6 +23,7 @@ export type ExportIndicator = {
   tags: string[];
   firstSeen: Date;
   lastSeen: Date;
+  expiresAt?: Date | null;
   source?: string | null;
 };
 
@@ -205,6 +206,7 @@ export function toStixBundle(indicators: ExportIndicator[]): string {
         created: i.firstSeen.toISOString(),
         modified: i.lastSeen.toISOString(),
         valid_from: i.firstSeen.toISOString(),
+        ...(i.expiresAt ? { valid_until: i.expiresAt.toISOString() } : {}),
         name: `${i.type} ${i.value}`,
         pattern,
         pattern_type: "stix",

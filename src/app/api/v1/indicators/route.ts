@@ -50,6 +50,33 @@ export async function GET(req: NextRequest) {
   const severity = parseSeverity(params.get("severity"));
   if (!severity.ok) return severity.response;
   const tag = params.get("tag");
+
+  // Attribution pivot filters — lets SOAR playbooks pull all IOCs for a
+  // given actor or campaign without needing to know which indicator IDs to ask for.
+  const actorId = params.get("actorId");
+  const campaignId = params.get("campaignId");
+
+  // Confidence floor — skip low-confidence indicators for high-fidelity exports.
+  const minConfidenceRaw = params.get("minConfidence");
+  const minConfidence = minConfidenceRaw !== null ? Number(minConfidenceRaw) : null;
+  if (minConfidence !== null && (isNaN(minConfidence) || minConfidence < 0 || minConfidence > 100)) {
+    return NextResponse.json({ error: "minConfidence must be 0-100." }, { status: 400 });
+  }
+
+  // `?since=` accepts an ISO date string — pulls indicators last seen after
+  // that date. Useful for incremental sync ("give me everything new since yesterday").
+  const sinceRaw = params.get("since");
+  let since: Date | null = null;
+  if (sinceRaw) {
+    since = new Date(sinceRaw);
+    if (isNaN(since.getTime())) {
+      return NextResponse.json(
+        { error: "since must be a valid ISO 8601 date string." },
+        { status: 400 },
+      );
+    }
+  }
+
   const now = new Date();
 
   const where = {
@@ -59,6 +86,12 @@ export async function GET(req: NextRequest) {
     ...(type.value ? { type: type.value } : {}),
     ...(severity.value ? { severity: severity.value } : {}),
     ...(tag ? { tags: { has: tag } } : {}),
+    ...(minConfidence !== null ? { confidence: { gte: minConfidence } } : {}),
+    ...(since ? { lastSeen: { gte: since } } : {}),
+    // Attribution filters are AND — if both are specified, indicator must be
+    // linked to BOTH the actor and the campaign.
+    ...(actorId ? { actors: { some: { actorId } } } : {}),
+    ...(campaignId ? { campaigns: { some: { campaignId } } } : {}),
   };
 
   // Non-JSON formats are a full-set export, not a paginated page — matches the
