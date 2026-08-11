@@ -3,6 +3,11 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { hashApiKey, parseBearerToken } from "@/lib/auth/apikey";
+import {
+  checkPublicApiRateLimit,
+  getPublicApiRateLimitConfig,
+  publicApiRateLimitResponse,
+} from "@/lib/api/rate-limit";
 
 /**
  * API-key authentication for the public REST API (`/api/v1/*`).
@@ -68,6 +73,19 @@ export async function requireApiKey(
         { status: 403 },
       ),
     };
+  }
+
+  const rateLimitConfig = getPublicApiRateLimitConfig();
+  try {
+    const rateLimit = await checkPublicApiRateLimit(key.id, rateLimitConfig);
+    if (!rateLimit.allowed) {
+      return {
+        ok: false,
+        response: publicApiRateLimitResponse(rateLimitConfig, rateLimit),
+      };
+    }
+  } catch (err) {
+    console.error("[api] rate limit check failed", err);
   }
 
   // Best-effort, like audit() — a failed usage-timestamp update must not fail

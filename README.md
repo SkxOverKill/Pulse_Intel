@@ -89,6 +89,8 @@ Use `.env.example` as the template. Important values:
 | `ABUSEIPDB_API_KEY` / `ABUSEIPDB_API_KEYS` | Optional enrichment provider |
 | `OTX_API_KEY` | Optional enrichment provider and OTX pulse feed |
 | `NVD_API_KEY` | Recommended for reliable CVE sync |
+| `PUBLIC_API_RATE_LIMIT_PER_WINDOW` | Optional public API limit, default `120` |
+| `PUBLIC_API_RATE_LIMIT_WINDOW_SECONDS` | Optional public API window, default `60` |
 | `SEED_PASSWORD` | Overrides local seed password |
 | `PULSE_DEMO_MODE=1` | Public read-only demo mode using `viewer@pulse.local` |
 
@@ -139,6 +141,8 @@ Available read endpoints:
 - `GET /api/v1/actors/:id`
 
 Whitelisted indicators are never returned by public API or export routes.
+Public API responses include `X-RateLimit-*` headers, and exhausted keys receive `429`
+with `Retry-After`.
 
 ## Deployment
 
