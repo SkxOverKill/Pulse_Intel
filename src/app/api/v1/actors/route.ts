@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { requireApiKey } from "@/lib/api/auth";
+import { parseBooleanParam, parsePageParams } from "@/lib/api/query";
 
 const PAGE_SIZE_DEFAULT = 50;
 const PAGE_SIZE_MAX = 200;
@@ -11,14 +12,17 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return auth.response;
 
   const params = req.nextUrl.searchParams;
-  const page = Math.max(1, Number(params.get("page")) || 1);
-  const pageSize = Math.min(
-    PAGE_SIZE_MAX,
-    Math.max(1, Number(params.get("pageSize")) || PAGE_SIZE_DEFAULT),
-  );
-  const active = params.get("active");
+  const pagination = parsePageParams(params, {
+    pageSize: PAGE_SIZE_DEFAULT,
+    maxPageSize: PAGE_SIZE_MAX,
+  });
+  if (!pagination.ok) return pagination.response;
+  const { page, pageSize } = pagination.value;
 
-  const where = active !== null ? { active: active === "true" } : {};
+  const active = parseBooleanParam(params.get("active"), "active");
+  if (!active.ok) return active.response;
+
+  const where = active.value !== null ? { active: active.value } : {};
 
   const [rows, total] = await Promise.all([
     db.threatActor.findMany({

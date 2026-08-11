@@ -8,6 +8,7 @@ import {
   type ExportFormat,
   type ExportIndicator,
 } from "@/lib/export/formats";
+import { parseIndicatorType, parseSeverity } from "@/lib/api/query";
 
 // A single export must not try to serialize the entire table into memory. This
 // is generous for a working set; a full-database dump is a Phase 8 streaming
@@ -35,14 +36,16 @@ export async function GET(req: NextRequest) {
   }
 
   const q = params.get("q");
-  const type = params.get("type");
-  const severity = params.get("severity");
+  const type = parseIndicatorType(params.get("type"));
+  if (!type.ok) return type.response;
+  const severity = parseSeverity(params.get("severity"));
+  if (!severity.ok) return severity.response;
 
   const where = {
     whitelisted: false,
     ...(q ? { normalizedValue: { contains: q.toLowerCase() } } : {}),
-    ...(type ? { type: type as never } : {}),
-    ...(severity ? { severity: severity as never } : {}),
+    ...(type.value ? { type: type.value } : {}),
+    ...(severity.value ? { severity: severity.value } : {}),
   };
 
   const rows = await db.indicator.findMany({
@@ -82,7 +85,11 @@ export async function GET(req: NextRequest) {
     action: "EXPORT",
     entityType: "Indicator",
     userId: user.id,
-    changes: { format, count: indicators.length, filters: { q, type, severity } },
+    changes: {
+      format,
+      count: indicators.length,
+      filters: { q, type: type.value, severity: severity.value },
+    },
   });
 
   const stamp = new Date().toISOString().slice(0, 10);

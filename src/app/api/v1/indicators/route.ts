@@ -7,6 +7,11 @@ import {
   type ExportFormat,
   type ExportIndicator,
 } from "@/lib/export/formats";
+import {
+  parseIndicatorType,
+  parsePageParams,
+  parseSeverity,
+} from "@/lib/api/query";
 
 const PAGE_SIZE_DEFAULT = 100;
 const PAGE_SIZE_MAX = 500;
@@ -31,22 +36,25 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unknown format." }, { status: 400 });
   }
 
-  const page = Math.max(1, Number(params.get("page")) || 1);
-  const pageSize = Math.min(
-    PAGE_SIZE_MAX,
-    Math.max(1, Number(params.get("pageSize")) || PAGE_SIZE_DEFAULT),
-  );
+  const pagination = parsePageParams(params, {
+    pageSize: PAGE_SIZE_DEFAULT,
+    maxPageSize: PAGE_SIZE_MAX,
+  });
+  if (!pagination.ok) return pagination.response;
+  const { page, pageSize } = pagination.value;
 
   const q = params.get("q");
-  const type = params.get("type");
-  const severity = params.get("severity");
+  const type = parseIndicatorType(params.get("type"));
+  if (!type.ok) return type.response;
+  const severity = parseSeverity(params.get("severity"));
+  if (!severity.ok) return severity.response;
   const tag = params.get("tag");
 
   const where = {
     whitelisted: false,
     ...(q ? { normalizedValue: { contains: q.toLowerCase() } } : {}),
-    ...(type ? { type: type as never } : {}),
-    ...(severity ? { severity: severity as never } : {}),
+    ...(type.value ? { type: type.value } : {}),
+    ...(severity.value ? { severity: severity.value } : {}),
     ...(tag ? { tags: { has: tag } } : {}),
   };
 
