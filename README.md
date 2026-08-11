@@ -15,6 +15,7 @@ exports, and scheduled intelligence reports from one practical workspace.
 - Export filtered IOCs as CSV, STIX 2.1, MISP JSON, and Snort/Suricata rules.
 - Expose scoped API keys for read-only programmatic access.
 - Generate scheduled Markdown reports from new indicators, KEV additions, hunt alerts, and feed health.
+- Review an admin-only audit log for authentication events, imports, exports, enrichment, and analyst actions.
 
 ## Status
 
@@ -39,6 +40,7 @@ npm install
 cp .env.example .env
 
 # Fill DATABASE_URL, REDIS_URL, SESSION_SECRET, and any provider API keys.
+# npm install runs prisma generate automatically; use npm run db:generate if needed.
 
 npm run db:migrate
 npm run db:seed
