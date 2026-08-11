@@ -242,7 +242,9 @@ const TECHNIQUE_DETECTIONS: Record<string, TechniqueDetection> = {
   },
   // Web shell
   "T1505.003": {
-    logsource: { category: "webserver", product: "windows" },
+    // Matches what build() emits below — a webserver-category logsource here
+    // would be dead config that silently disagrees with the generated rule.
+    logsource: { category: "file_event", product: "windows" },
     build: (actor, tid, tname, confidence) => ({
       ...base(
         `${actor} — Web Shell Activity (${tid})`,
@@ -321,15 +323,27 @@ function generateNetworkRule(opts: GenerateOptions): SigmaRule | null {
   const tags = [`attack.command_and_control`];
   if (opts.attackGroupId) tags.push(`attack.group.${opts.attackGroupId.toLowerCase()}`);
 
+  // Named sub-selections, one per observable type: within a single Sigma
+  // selection map every field must match (AND), so a flat `selection` would
+  // make a blocklist rule fire only when a single event contains a matching
+  // domain AND IP AND URL at once. Splitting into `selection_*` keys makes
+  // `1 of selection*` behave as an OR across observable types, which is what
+  // an IOC blocklist means.
   const selection: Record<string, unknown> = {};
   if (domains.length > 0) {
-    selection["dns.question.name|contains"] = domains.map((d) => d.normalizedValue);
+    selection.selection_dns = {
+      "dns.question.name|contains": domains.map((d) => d.normalizedValue),
+    };
   }
   if (ips.length > 0) {
-    selection["DestinationIp"] = ips.map((i) => i.normalizedValue);
+    selection.selection_ip = {
+      DestinationIp: ips.map((i) => i.normalizedValue),
+    };
   }
   if (urls.length > 0) {
-    selection["http.request.uri|contains"] = urls.map((u) => u.normalizedValue);
+    selection.selection_url = {
+      "http.request.uri|contains": urls.map((u) => u.normalizedValue),
+    };
   }
 
   return {
@@ -358,10 +372,27 @@ function generateHashRule(opts: GenerateOptions): SigmaRule | null {
   const tags = [`attack.execution`];
   if (opts.attackGroupId) tags.push(`attack.group.${opts.attackGroupId.toLowerCase()}`);
 
+  // Same pattern as the network rule: a flat selection would AND the hash
+  // types together, so each type gets its own `selection_*` key and the
+  // condition ORs them. All three match against Sysmon's `Hashes` field
+  // (`MD5=..,SHA1=..,SHA256=..`) — `md5`/`sha1` are not standard Sigma fields,
+  // so rules using them would silently never match in most backends.
   const selection: Record<string, unknown> = {};
-  if (sha256.length > 0) selection["Hashes|contains"] = sha256.map((h) => `SHA256=${h.normalizedValue.toUpperCase()}`);
-  if (md5.length > 0)    selection["md5|contains"]    = md5.map((h) => h.normalizedValue.toUpperCase());
-  if (sha1.length > 0)   selection["sha1|contains"]   = sha1.map((h) => h.normalizedValue.toUpperCase());
+  if (sha256.length > 0) {
+    selection.selection_sha256 = {
+      "Hashes|contains": sha256.map((h) => `SHA256=${h.normalizedValue.toUpperCase()}`),
+    };
+  }
+  if (md5.length > 0) {
+    selection.selection_md5 = {
+      "Hashes|contains": md5.map((h) => `MD5=${h.normalizedValue.toUpperCase()}`),
+    };
+  }
+  if (sha1.length > 0) {
+    selection.selection_sha1 = {
+      "Hashes|contains": sha1.map((h) => `SHA1=${h.normalizedValue.toUpperCase()}`),
+    };
+  }
 
   return {
     ...base(
@@ -386,10 +417,21 @@ function generateHostRule(opts: GenerateOptions): SigmaRule | null {
 
   if (mutexes.length === 0 && filenames.length === 0 && regkeys.length === 0) return null;
 
+  // Named sub-selections, same OR-across-types pattern as the network rule.
   const selection: Record<string, unknown> = {};
-  if (mutexes.length > 0)   selection["ObjectName"] = mutexes.map((m) => m.normalizedValue);
-  if (filenames.length > 0) selection["TargetFilename|endswith"] = filenames.map((f) => f.normalizedValue);
-  if (regkeys.length > 0)   selection["TargetObject|contains"] = regkeys.map((r) => r.normalizedValue);
+  if (mutexes.length > 0) {
+    selection.selection_mutex = { ObjectName: mutexes.map((m) => m.normalizedValue) };
+  }
+  if (filenames.length > 0) {
+    selection.selection_filename = {
+      "TargetFilename|endswith": filenames.map((f) => f.normalizedValue),
+    };
+  }
+  if (regkeys.length > 0) {
+    selection.selection_regkey = {
+      "TargetObject|contains": regkeys.map((r) => r.normalizedValue),
+    };
+  }
 
   return {
     ...base(
