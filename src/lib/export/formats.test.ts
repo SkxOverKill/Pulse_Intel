@@ -49,6 +49,21 @@ describe("toCsv", () => {
     const csv = toCsv([ind({ tags: ["a", "b", "c"] })]);
     expect(csv).toContain("a|b|c");
   });
+
+  it("neutralizes leading spreadsheet formula characters (CWE-1236)", () => {
+    const csv = toCsv([
+      ind({ value: '=HYPERLINK("http://evil.example")' }),
+      ind({ value: "+cmd|' /C calc'!A0" }),
+      ind({ value: "@SUM(1,2)" }),
+      ind({ value: "-1+1" }),
+      ind({ value: "1.2.3.4" }),
+    ]);
+    expect(csv).toContain("'=HYPERLINK");
+    expect(csv).toContain("'+cmd|");
+    expect(csv).toContain("'@SUM");
+    expect(csv).toContain("'-1+1");
+    expect(csv).toContain("1.2.3.4");
+  });
 });
 
 describe("stixPattern", () => {

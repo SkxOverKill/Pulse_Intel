@@ -86,10 +86,20 @@ const CSV_COLUMNS = [
   "lastSeen",
 ] as const;
 
-/** RFC 4180 quoting: wrap in quotes and double any embedded quotes. */
+/**
+ * CSV injection / CWE-1236: an indicator value comes from a feed, so it is
+ * attacker-influenced. Excel and Google Sheets evaluate a leading `=`, `+`,
+ * `-`, `@` (and a leading tab/CR) as a formula when the export is opened —
+ * a feed could ship an IOC that becomes a live formula in an analyst's
+ * spreadsheet. Neutralize the first character with a leading single quote:
+ * the value keeps its content, the spreadsheet treats it as text.
+ */
+const CSV_FORMULA_RE = /^[=+\-@\t\r]/;
+
 function csvCell(value: string): string {
-  if (/[",\r\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
-  return value;
+  const safe = CSV_FORMULA_RE.test(value) ? `'${value}` : value;
+  if (/[",\r\n]/.test(safe)) return `"${safe.replace(/"/g, '""')}"`;
+  return safe;
 }
 
 export function toCsv(indicators: ExportIndicator[]): string {
