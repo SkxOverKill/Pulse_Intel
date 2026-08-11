@@ -14,12 +14,15 @@ export function Table({ children }: { children: ReactNode }) {
 export function Th({
   children,
   className,
+  title,
 }: {
   children?: ReactNode;
   className?: string;
+  title?: string;
 }) {
   return (
     <th
+      title={title}
       className={cn(
         "sticky top-0 z-[2] border-b border-line bg-surface px-3 py-2 text-left text-[10px] font-medium uppercase tracking-wider text-ink-faint",
         className,
@@ -33,12 +36,14 @@ export function Th({
 export function Td({
   children,
   className,
+  title,
 }: {
   children?: ReactNode;
   className?: string;
+  title?: string;
 }) {
   return (
-    <td className={cn("border-b border-line/60 px-3 py-2.5 align-middle", className)}>
+    <td title={title} className={cn("border-b border-line/60 px-3 py-2.5 align-middle", className)}>
       {children}
     </td>
   );

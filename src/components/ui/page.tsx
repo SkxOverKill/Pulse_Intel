@@ -75,14 +75,14 @@ export function DetailRow({
   );
 }
 
-export function Tag({ children }: { children: ReactNode }) {
+export function Tag({ children, title }: { children: ReactNode; title?: string }) {
   return (
-    <span className="inline-flex items-center rounded border border-line bg-surface-2 px-1.5 py-0.5 text-xs text-ink-muted">
+    <span title={title} className="inline-flex items-center rounded border border-line bg-surface-2 px-1.5 py-0.5 text-xs text-ink-muted">
       {children}
     </span>
   );
 }
 
-export function Muted({ children }: { children: ReactNode }) {
-  return <span className="text-ink-faint">{children}</span>;
+export function Muted({ children, className }: { children: ReactNode; className?: string }) {
+  return <span className={cn("text-ink-faint", className)}>{children}</span>;
 }

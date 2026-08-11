@@ -76,20 +76,6 @@ async function fetchActor(id: string) {
   });
 }
 
-function SharedSet({ label, items }: { label: string; items: string[] }) {
-  return (
-    <div>
-      <p className="mb-1 text-xs text-ink-faint">{label}</p>
-      {items.length > 0 ? (
-        <div className="flex flex-wrap gap-1">
-          {items.map((t) => <Tag key={t}>{t}</Tag>)}
-        </div>
-      ) : (
-        <Muted>None</Muted>
-      )}
-    </div>
-  );
-}
 
 function ActorColumn({ actor }: { actor: NonNullable<Actor> }) {
   return (

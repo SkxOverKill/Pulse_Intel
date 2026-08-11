@@ -294,7 +294,7 @@ export function extractIocs(
   const indicators: ExtractedIndicator[] = [];
   let unparsedCount = 0;
 
-  if (!isProse || mode === "line") {
+  if (!isProse) {
     // Line mode
     for (const line of lines) {
       // Handle comma/tab-separated values on a single line.
@@ -313,7 +313,7 @@ export function extractIocs(
     }
   }
 
-  if (isProse || mode === "prose") {
+  if (isProse) {
     // Prose mode — scan the full text for embedded IOCs.
     const proseHits = extractFromProse(text);
     for (const hit of proseHits) {
