@@ -16,6 +16,8 @@ import { Table, Td, Th, Tr } from "@/components/ui/table";
 import { defang } from "@/lib/ioc/normalize";
 import { whitelistReason } from "@/lib/ioc/whitelist";
 import { deleteIndicator, setWhitelisted } from "../actions";
+import { CopyDefangedButton } from "./copy-button";
+import { EnrichmentCards } from "./enrichment-cards";
 
 export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
@@ -53,6 +55,7 @@ export default async function IndicatorDetailPage(props: {
         description={`${indicator.type} · first seen ${indicator.firstSeen.toISOString().slice(0, 10)}`}
         action={
           <div className="flex shrink-0 items-center gap-2">
+            <CopyDefangedButton defanged={defang(indicator.value)} />
             {canEdit ? (
               <form action={setWhitelisted}>
                 <input type="hidden" name="id" value={indicator.id} />
@@ -162,35 +165,21 @@ export default async function IndicatorDetailPage(props: {
             {indicator.enrichments.length === 0 ? (
               <EmptyState
                 title="Not enriched yet"
-                description="The enrichment engine — VirusTotal, AbuseIPDB, OTX behind a shared rate limiter — arrives in Phase 4."
+                description="Enrichment runs automatically via OTX, GreyNoise, Shodan, AbuseIPDB, and VirusTotal — results appear here once queued."
               />
             ) : (
-              <Table>
-                <thead>
-                  <tr>
-                    <Th>Provider</Th>
-                    <Th>Verdict</Th>
-                    <Th>Score</Th>
-                    <Th>Fetched</Th>
-                    <Th>Expires</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {indicator.enrichments.map((e) => (
-                    <Tr key={e.id}>
-                      <Td className="text-xs">{e.provider}</Td>
-                      <Td className="text-xs">{e.verdict}</Td>
-                      <Td className="tabular text-xs">{e.score ?? "—"}</Td>
-                      <Td className="tabular text-xs text-ink-muted">
-                        {e.fetchedAt.toISOString().slice(0, 10)}
-                      </Td>
-                      <Td className="tabular text-xs text-ink-muted">
-                        {e.expiresAt.toISOString().slice(0, 10)}
-                      </Td>
-                    </Tr>
-                  ))}
-                </tbody>
-              </Table>
+              <EnrichmentCards
+                enrichments={indicator.enrichments.map((e) => ({
+                  id:          e.id,
+                  provider:    e.provider,
+                  verdict:     e.verdict as "MALICIOUS" | "SUSPICIOUS" | "BENIGN" | "UNKNOWN",
+                  score:       e.score,
+                  rawResponse: e.rawResponse,
+                  fetchedAt:   e.fetchedAt,
+                  expiresAt:   e.expiresAt,
+                  error:       e.error,
+                }))}
+              />
             )}
           </Card>
 
