@@ -1,0 +1,749 @@
+// Pulse Intelligence — core schema
+// See pulse_intelligence_spec.md section 3 for the reasoning behind this model.
+//
+// Design rule that shows up everywhere below: attribution is opinion, not fact.
+// Every link between entities (actor->technique, actor->indicator, campaign->actor)
+// is an explicit join model carrying `confidence` and `addedById`, so the UI can
+// always answer "who claimed this, and how sure were they?".
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  ANALYST
+  READONLY
+}
+
+/// Traffic Light Protocol 2.0. Enforced at the query layer, not just displayed.
+enum Tlp {
+  CLEAR
+  GREEN
+  AMBER
+  AMBER_STRICT
+  RED
+}
+
+enum IndicatorType {
+  IPV4
+  IPV6
+  DOMAIN
+  URL
+  MD5
+  SHA1
+  SHA256
+  EMAIL
+  CVE
+  BTC_ADDRESS
+  REGISTRY_KEY
+  MUTEX
+  FILENAME
+  USER_AGENT
+  ASN
+}
+
+enum Severity {
+  INFO
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum Motivation {
+  ESPIONAGE
+  FINANCIAL
+  HACKTIVISM
+  DESTRUCTION
+  INFORMATION_OPS
+  UNKNOWN
+}
+
+enum Sophistication {
+  MINIMAL
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+  STRATEGIC
+}
+
+enum CampaignStatus {
+  SUSPECTED
+  ACTIVE
+  DORMANT
+  CONCLUDED
+}
+
+enum AttackDomain {
+  ENTERPRISE
+  MOBILE
+  ICS
+}
+
+enum SourceType {
+  RSS
+  TAXII
+  MISP
+  CSV
+  JSON
+  TEXT
+  MANUAL
+}
+
+enum Verdict {
+  MALICIOUS
+  SUSPICIOUS
+  BENIGN
+  UNKNOWN
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  LOGIN_FAILED
+  ENRICH
+  EXPORT
+  IMPORT
+}
+
+// ---------------------------------------------------------------------------
+// Platform: users, sessions, audit
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  role         Role      @default(ANALYST)
+  active       Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  sessions  Session[]
+  auditLogs AuditLog[]
+  apiKeys   ApiKey[]
+
+  // Reverse relations for provenance ("who claimed this")
+  actorTechniques    ActorTechnique[]
+  actorMalware       ActorMalware[]
+  actorTools         ActorTool[]
+  actorIndicators    ActorIndicator[]
+  campaignActors     CampaignActor[]
+  campaignTechniques CampaignTechnique[]
+  campaignIndicators CampaignIndicator[]
+  reportActors       ReportActor[]
+  reportIndicators   ReportIndicator[]
+  reportTechniques   ReportTechnique[]
+  actorAliases       ActorAlias[]
+  authoredReports    Report[]
+  huntQueries        HuntQuery[]
+  scheduledReports   ScheduledReport[]
+
+  @@index([email])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  /// SHA-256 of the raw session token. The raw token only ever lives in the cookie.
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  ipAddress String?
+  userAgent String?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  name       String
+  /// SHA-256 of the key. Raw key shown once at creation and never stored.
+  keyHash    String    @unique
+  prefix     String
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scopes     String[]  @default([])
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  revoked    Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  action     AuditAction
+  entityType String
+  entityId   String?
+  userId     String?
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// Before/after diff for UPDATE, payload for CREATE, identifying fields for DELETE.
+  changes    Json?
+  ipAddress  String?
+  createdAt  DateTime    @default(now())
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Threat actors
+// ---------------------------------------------------------------------------
+
+model ThreatActor {
+  id             String          @id @default(cuid())
+  name           String          @unique
+  slug           String          @unique
+  description    String?
+  /// ATT&CK group id, e.g. "G0016". Null for actors MITRE does not track.
+  attackGroupId  String?
+  country        String?
+  motivation     Motivation      @default(UNKNOWN)
+  sophistication Sophistication?
+  firstSeen      DateTime?
+  lastSeen       DateTime?
+  active         Boolean         @default(true)
+  confidence     Int             @default(50)
+  tlp            Tlp             @default(AMBER)
+  targetSectors  String[]        @default([])
+  targetCountries String[]       @default([])
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  aliases    ActorAlias[]
+  techniques ActorTechnique[]
+  malware    ActorMalware[]
+  tools      ActorTool[]
+  indicators ActorIndicator[]
+  campaigns  CampaignActor[]
+  reports    ReportActor[]
+
+  @@index([attackGroupId])
+  @@index([active])
+}
+
+/// Aliases are their own model because cross-vendor naming is the hard part of
+/// APT tracking. "APT29" / "Cozy Bear" / "Midnight Blizzard" / "NOBELIUM" are the
+/// same actor named by four vendors — we keep who said what rather than collapsing them.
+model ActorAlias {
+  id        String      @id @default(cuid())
+  actorId   String
+  actor     ThreatActor @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  alias     String
+  /// Vendor or report that uses this name, e.g. "CrowdStrike", "Microsoft".
+  namedBy   String?
+  addedById String?
+  addedBy   User?       @relation(fields: [addedById], references: [id], onDelete: SetNull)
+  createdAt DateTime    @default(now())
+
+  @@unique([actorId, alias])
+  @@index([alias])
+}
+
+// ---------------------------------------------------------------------------
+// Campaigns
+// ---------------------------------------------------------------------------
+
+model Campaign {
+  id              String         @id @default(cuid())
+  name            String         @unique
+  slug            String         @unique
+  description     String?
+  status          CampaignStatus @default(SUSPECTED)
+  startDate       DateTime?
+  endDate         DateTime?
+  targetSectors   String[]       @default([])
+  targetCountries String[]       @default([])
+  confidence      Int            @default(50)
+  tlp             Tlp            @default(AMBER)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  actors     CampaignActor[]
+  techniques CampaignTechnique[]
+  indicators CampaignIndicator[]
+
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// Indicators & enrichment
+// ---------------------------------------------------------------------------
+
+model Indicator {
+  id   String        @id @default(cuid())
+  type IndicatorType
+  /// As supplied by the source (may be defanged, mixed case).
+  value String
+  /// Refanged + lowercased + trimmed. Dedup key — see @@unique below.
+  normalizedValue String
+  firstSeen   DateTime  @default(now())
+  lastSeen    DateTime  @default(now())
+  confidence  Int       @default(50)
+  severity    Severity  @default(MEDIUM)
+  tlp         Tlp       @default(AMBER)
+  tags        String[]  @default([])
+  /// Set when the indicator ages out per its source's decay half-life.
+  expiresAt   DateTime?
+  /// Whitelisted indicators are never exported or alerted on. Stops the classic
+  /// TIP failure of blocking 8.8.8.8 because some feed listed it.
+  whitelisted Boolean   @default(false)
+  sourceId    String?
+  source      Source?   @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  enrichments Enrichment[]
+  actors      ActorIndicator[]
+  campaigns   CampaignIndicator[]
+  reports     ReportIndicator[]
+
+  /// The single most important constraint in the schema. Feeds overlap heavily;
+  /// without dedup at ingest this table is garbage within a week.
+  @@unique([type, normalizedValue])
+  @@index([type])
+  @@index([lastSeen])
+  @@index([severity])
+  @@index([whitelisted])
+  @@index([sourceId])
+}
+
+/// One row per (indicator, provider) lookup. Cache-first: a fresh row here means
+/// we never spend quota re-asking. This table is what keeps us inside free tiers.
+model Enrichment {
+  id          String    @id @default(cuid())
+  indicatorId String
+  indicator   Indicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  /// Provider slug, e.g. "virustotal", "abuseipdb", "otx", "stub".
+  provider    String
+  rawResponse Json
+  verdict     Verdict   @default(UNKNOWN)
+  /// Provider-normalized 0-100 maliciousness score.
+  score       Int?
+  fetchedAt   DateTime  @default(now())
+  expiresAt   DateTime
+  /// Set when the provider errored, so we can distinguish "clean" from "failed".
+  error       String?
+
+  @@unique([indicatorId, provider])
+  @@index([provider])
+  @@index([expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// Malware, tools, ATT&CK
+// ---------------------------------------------------------------------------
+
+model Malware {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  aliases     String[] @default([])
+  family      String?
+  description String?
+  /// ATT&CK software id, e.g. "S0154".
+  attackId    String?  @unique
+  platforms   String[] @default([])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  actors ActorMalware[]
+}
+
+model Tool {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  aliases     String[] @default([])
+  description String?
+  attackId    String?  @unique
+  /// True for legitimate software abused by actors (PsExec, Cobalt Strike).
+  dualUse     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  actors ActorTool[]
+}
+
+/// ATT&CK tactic — the matrix columns. Stored rather than hardcoded so the
+/// column order comes from MITRE's own x-mitre-matrix ordering.
+model Tactic {
+  id          String       @id @default(cuid())
+  /// e.g. "TA0002".
+  attackId    String
+  name        String
+  /// e.g. "execution" — this is what techniques reference in kill_chain_phases.
+  shortname   String
+  description String?
+  domain      AttackDomain @default(ENTERPRISE)
+  /// Position in the matrix, taken from x-mitre-matrix tactic_refs.
+  order       Int
+  attackVersion String
+
+  @@unique([shortname, domain])
+  @@index([domain, order])
+}
+
+model Technique {
+  id   String @id @default(cuid())
+  /// e.g. "T1566" or "T1566.001". Stable across ATT&CK versions — all mappings key on this.
+  attackId String
+  name        String
+  description String?
+  /// Tactic shortnames. An array, not a single value: 21% of techniques belong
+  /// to more than one tactic (T1053.005 spans execution, persistence and
+  /// privilege-escalation) and must appear in every matching matrix column.
+  tactics     String[]     @default([])
+  domain      AttackDomain @default(ENTERPRISE)
+  platforms   String[]     @default([])
+  /// Resolved from x-mitre-analytic log source references. ATT&CK v19 moved
+  /// these off the technique object itself.
+  dataSources String[]     @default([])
+  /// Composed from linked x-mitre-detection-strategy analytics. Empty on the
+  /// technique object since v19.
+  detection   String?
+  isSubtechnique Boolean   @default(false)
+  parentId       String?
+  parent         Technique?  @relation("SubTechniques", fields: [parentId], references: [id], onDelete: SetNull)
+  subtechniques  Technique[] @relation("SubTechniques")
+  deprecated     Boolean     @default(false)
+  /// ATT&CK release this row came from, e.g. "19.1". Pinned; upgrades are explicit.
+  attackVersion  String
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  actors    ActorTechnique[]
+  campaigns CampaignTechnique[]
+  reports   ReportTechnique[]
+
+  @@unique([attackId, domain])
+  @@index([tactics])
+  @@index([domain])
+  @@index([deprecated])
+}
+
+// ---------------------------------------------------------------------------
+// Reports, sources, news, vulns, hunts
+// ---------------------------------------------------------------------------
+
+model Report {
+  id          String    @id @default(cuid())
+  title       String
+  slug        String    @unique
+  /// Markdown.
+  body        String
+  summary     String?
+  published   Boolean   @default(false)
+  publishedAt DateTime?
+  authorId    String?
+  author      User?     @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  tlp         Tlp       @default(AMBER)
+  confidence  Int       @default(50)
+  sourceUrl   String?
+  tags        String[]  @default([])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  actors     ReportActor[]
+  indicators ReportIndicator[]
+  techniques ReportTechnique[]
+
+  @@index([published, publishedAt])
+}
+
+model Source {
+  id         String     @id @default(cuid())
+  name       String     @unique
+  type       SourceType
+  url        String?
+  enabled    Boolean    @default(true)
+  /// Cron expression. Null for manual-only sources.
+  schedule   String?
+  lastRunAt  DateTime?
+  lastStatus String?
+  lastError  String?
+  /// Rolling counters for the feed-health dashboard. A silently dead feed is
+  /// worse than no feed, so these are first-class, not logs.
+  itemsIngested Int      @default(0)
+  itemsDuped    Int      @default(0)
+  errorCount    Int      @default(0)
+  defaultTlp        Tlp  @default(AMBER)
+  defaultConfidence Int  @default(50)
+  /// Decay half-life in days for indicators from this source. Null = never expire.
+  decayHalfLifeDays Int?
+  /// Parser-specific config: column maps for CSV, JSONPath for JSON, feed auth, etc.
+  parserConfig Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  indicators Indicator[]
+  newsItems  NewsItem[]
+
+  @@index([enabled])
+}
+
+model NewsItem {
+  id             String   @id @default(cuid())
+  title          String
+  summary        String?
+  url            String   @unique
+  publishedAt    DateTime
+  sourceId       String?
+  source         Source?  @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  tags           String[] @default([])
+  relevanceScore Int      @default(0)
+  /// Full article text, extracted from the source page on request (not at
+  /// ingest time — see design note in lib/feeds/article.ts). Null until an
+  /// analyst fetches it.
+  content        String?
+  contentFetchedAt DateTime?
+  /// Denormalized auto-link results. Cheap to recompute, not worth join tables.
+  linkedActorIds    String[] @default([])
+  linkedCveIds      String[] @default([])
+  linkedCampaignIds String[] @default([])
+  createdAt      DateTime @default(now())
+
+  @@index([publishedAt])
+  @@index([relevanceScore])
+}
+
+model Vulnerability {
+  id             String    @id @default(cuid())
+  cveId          String    @unique
+  description    String?
+  cvssV3         Float?
+  cvssV4         Float?
+  /// EPSS exploit-prediction probability, 0-1.
+  epssScore      Float?
+  /// On the CISA Known Exploited Vulnerabilities catalog.
+  knownExploited Boolean   @default(false)
+  kevDateAdded   DateTime?
+  publishedAt    DateTime?
+  vendorRefs     String[]  @default([])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([knownExploited])
+  @@index([epssScore])
+  @@index([publishedAt])
+}
+
+model HuntQuery {
+  id            String    @id @default(cuid())
+  name          String
+  description   String?
+  /// Structured query AST, interpreted by the hunt engine (Phase 6).
+  query         Json
+  schedule      String?
+  lastRunAt     DateTime?
+  lastHitCount  Int       @default(0)
+  notifyOnHit   Boolean   @default(false)
+  ownerId       String?
+  owner         User?     @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  alerts        HuntAlert[]
+
+  @@index([ownerId])
+}
+
+/// One row per scheduled hunt run that turned up *new* matches. This is the
+/// alerting record: the worker writes it, the UI shows it, an analyst
+/// acknowledges it. `indicatorIds` holds the new matches so the alert links
+/// straight to what changed rather than re-running the query.
+model HuntAlert {
+  id           String    @id @default(cuid())
+  huntId       String
+  hunt         HuntQuery @relation(fields: [huntId], references: [id], onDelete: Cascade)
+  matchCount   Int
+  newCount     Int
+  indicatorIds String[]  @default([])
+  acknowledged Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+
+  @@index([huntId])
+  @@index([acknowledged])
+}
+
+/// A recurring intelligence summary. The worker runs it on `schedule`, generates
+/// a markdown body from what changed since `lastRunAt`, and files it as a
+/// normal `Report` — so a scheduled report reads in the UI exactly like an
+/// analyst-authored one, just with no `authorId`.
+model ScheduledReport {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  schedule    String
+  enabled     Boolean   @default(true)
+  lastRunAt   DateTime?
+  ownerId     String?
+  owner       User?     @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([ownerId])
+}
+
+// ---------------------------------------------------------------------------
+// Join models — every one carries confidence + provenance
+// ---------------------------------------------------------------------------
+
+model ActorTechnique {
+  actorId     String
+  actor       ThreatActor @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  techniqueId String
+  technique   Technique   @relation(fields: [techniqueId], references: [id], onDelete: Cascade)
+  confidence  Int         @default(50)
+  notes       String?
+  addedById   String?
+  addedBy     User?       @relation(fields: [addedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime    @default(now())
+
+  @@id([actorId, techniqueId])
+  @@index([techniqueId])
+}
+
+model ActorMalware {
+  actorId    String
+  actor      ThreatActor @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  malwareId  String
+  malware    Malware     @relation(fields: [malwareId], references: [id], onDelete: Cascade)
+  confidence Int         @default(50)
+  addedById  String?
+  addedBy    User?       @relation(fields: [addedById], references: [id], onDelete: SetNull)
+  createdAt  DateTime    @default(now())
+
+  @@id([actorId, malwareId])
+  @@index([malwareId])
+}
+
+model ActorTool {
+  actorId    String
+  actor      ThreatActor @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  toolId     String
+  tool       Tool        @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  confidence Int         @default(50)
+  addedById  String?
+  addedBy    User?       @relation(fields: [addedById], references: [id], onDelete: SetNull)
+  createdAt  DateTime    @default(now())
+
+  @@id([actorId, toolId])
+  @@index([toolId])
+}
+
+model ActorIndicator {
+  actorId     String
+  actor       ThreatActor @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  indicatorId String
+  indicator   Indicator   @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  confidence  Int         @default(50)
+  addedById   String?
+  addedBy     User?       @relation(fields: [addedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime    @default(now())
+
+  @@id([actorId, indicatorId])
+  @@index([indicatorId])
+}
+
+model CampaignActor {
+  campaignId String
+  campaign   Campaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  actorId    String
+  actor      ThreatActor @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  confidence Int         @default(50)
+  addedById  String?
+  addedBy    User?       @relation(fields: [addedById], references: [id], onDelete: SetNull)
+  createdAt  DateTime    @default(now())
+
+  @@id([campaignId, actorId])
+  @@index([actorId])
+}
+
+model CampaignTechnique {
+  campaignId  String
+  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  techniqueId String
+  technique   Technique @relation(fields: [techniqueId], references: [id], onDelete: Cascade)
+  confidence  Int       @default(50)
+  addedById   String?
+  addedBy     User?     @relation(fields: [addedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+
+  @@id([campaignId, techniqueId])
+  @@index([techniqueId])
+}
+
+model CampaignIndicator {
+  campaignId  String
+  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  indicatorId String
+  indicator   Indicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  confidence  Int       @default(50)
+  addedById   String?
+  addedBy     User?     @relation(fields: [addedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+
+  @@id([campaignId, indicatorId])
+  @@index([indicatorId])
+}
+
+model ReportActor {
+  reportId   String
+  report     Report      @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  actorId    String
+  actor      ThreatActor @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  confidence Int         @default(50)
+  addedById  String?
+  addedBy    User?       @relation(fields: [addedById], references: [id], onDelete: SetNull)
+  createdAt  DateTime    @default(now())
+
+  @@id([reportId, actorId])
+  @@index([actorId])
+}
+
+model ReportIndicator {
+  reportId    String
+  report      Report    @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  indicatorId String
+  indicator   Indicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  confidence  Int       @default(50)
+  addedById   String?
+  addedBy     User?     @relation(fields: [addedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+
+  @@id([reportId, indicatorId])
+  @@index([indicatorId])
+}
+
+model ReportTechnique {
+  reportId    String
+  report      Report    @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  techniqueId String
+  technique   Technique @relation(fields: [techniqueId], references: [id], onDelete: Cascade)
+  confidence  Int       @default(50)
+  addedById   String?
+  addedBy     User?     @relation(fields: [addedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+
+  @@id([reportId, techniqueId])
+  @@index([techniqueId])
+}
