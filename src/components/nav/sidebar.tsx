@@ -67,7 +67,7 @@ const SECTIONS: { heading: string; items: NavItem[] }[] = [
     heading: "System",
     items: [
       { href: "/settings", label: "Settings", icon: Settings },
-      { href: "/audit", label: "Audit Log", icon: Globe, soon: true },
+      { href: "/audit", label: "Audit Log", icon: Globe },
     ],
   },
 ];
