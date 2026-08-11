@@ -10,6 +10,68 @@ import { toggleSource } from "./actions";
 
 export const metadata = { title: "Feeds · Pulse Intelligence" };
 
+/**
+ * Per-source reliability stats.
+ * hitRate  — fraction of the source's indicators that have at least one
+ *            enrichment with a malicious score ≥ 50. A high rate means the
+ *            feed is sending real threats; a low rate means it's noisy.
+ * dedupRate — fraction of ingested items that were duplicates of existing
+ *            indicators. High dedup is fine (overlap is expected in quality
+ *            feeds); 0% dedup on a new source is suspicious (no overlap with
+ *            any other source = possibly fabricated or low-quality data).
+ * avgConf  — average confidence across the source's indicators, as set by
+ *            the source's configured defaultConfidence and adjusted by
+ *            enrichment feedback.
+ */
+type ReliabilityStats = {
+  sourceId: string;
+  hitRate: number;      // 0-1
+  dedupRate: number;    // 0-1
+  indicatorCount: number;
+};
+
+async function computeReliabilityStats(
+  sourceIds: string[],
+): Promise<Map<string, ReliabilityStats>> {
+  if (sourceIds.length === 0) return new Map();
+
+  // All non-whitelisted indicators per source.
+  const totals = await db.indicator.groupBy({
+    by: ["sourceId"],
+    where: { sourceId: { in: sourceIds }, whitelisted: false },
+    _count: { id: true },
+  });
+
+  // Indicators from these sources that have at least one malicious enrichment.
+  const hits = await db.indicator.groupBy({
+    by: ["sourceId"],
+    where: {
+      sourceId: { in: sourceIds },
+      whitelisted: false,
+      enrichments: { some: { score: { gte: 50 } } },
+    },
+    _count: { id: true },
+  });
+
+  const hitMap = new Map(hits.map((h) => [h.sourceId, h._count.id]));
+
+  const statsMap = new Map<string, ReliabilityStats>();
+
+  for (const t of totals) {
+    if (!t.sourceId) continue;
+    const total = t._count.id;
+    const hitCount = hitMap.get(t.sourceId) ?? 0;
+    statsMap.set(t.sourceId, {
+      sourceId: t.sourceId,
+      hitRate: total > 0 ? hitCount / total : 0,
+      dedupRate: 0, // filled below from source.itemsDuped
+      indicatorCount: total,
+    });
+  }
+
+  return statsMap;
+}
+
 /** A feed that silently stops returning data is worse than no feed at all. */
 function healthTone(status: string | null, lastRunAt: Date | null): string {
   if (status === "error") return "text-danger";
@@ -29,6 +91,18 @@ export default async function FeedsPage() {
     orderBy: [{ enabled: "desc" }, { name: "asc" }],
     include: { _count: { select: { indicators: true, newsItems: true } } },
   });
+
+  const reliabilityStats = await computeReliabilityStats(
+    sources.map((s) => s.id),
+  );
+
+  // Patch dedupRate from source.itemsDuped — already tracked by the ingestor.
+  for (const s of sources) {
+    const stat = reliabilityStats.get(s.id);
+    if (stat && s.itemsIngested > 0) {
+      stat.dedupRate = s.itemsDuped / s.itemsIngested;
+    }
+  }
 
   const healthy = sources.filter((s) => s.lastStatus === "ok").length;
   const erroring = sources.filter((s) => s.lastStatus === "error").length;
@@ -70,7 +144,8 @@ export default async function FeedsPage() {
                 <Th>Type</Th>
                 <Th>Schedule</Th>
                 <Th className="text-right">Ingested</Th>
-                <Th className="text-right">Deduped</Th>
+                <Th className="text-right" title="Fraction of ingested items that were already known — high overlap is normal for quality feeds">Dedup %</Th>
+                <Th title="% of this source's indicators confirmed malicious by enrichment (score ≥ 50)">Hit rate</Th>
                 <Th>Last run</Th>
                 <Th>Health</Th>
                 <Th>Status</Th>
@@ -79,7 +154,7 @@ export default async function FeedsPage() {
             </thead>
             <tbody>
               {sources.map((s) => (
-                <Tr key={s.id}>
+                <Tr key={s.id} data-reliability={reliabilityStats.get(s.id)?.hitRate ?? 0}>
                   <Td>
                     {canManage ? (
                       <Link
@@ -102,9 +177,45 @@ export default async function FeedsPage() {
                   <Td className="tabular text-right text-xs">
                     {s.itemsIngested.toLocaleString()}
                   </Td>
-                  <Td className="tabular text-right text-xs text-ink-faint">
-                    {s.itemsDuped.toLocaleString()}
-                  </Td>
+                  {(() => {
+                    const stat = reliabilityStats.get(s.id);
+                    const dedupPct = stat ? Math.round(stat.dedupRate * 100) : 0;
+                    return (
+                      <Td className="tabular text-right text-xs text-ink-muted">
+                        {s.itemsIngested > 0 ? `${dedupPct}%` : <Muted>—</Muted>}
+                      </Td>
+                    );
+                  })()}
+                  {(() => {
+                    const stat = reliabilityStats.get(s.id);
+                    if (!stat || stat.indicatorCount === 0) {
+                      return <Td><Muted className="text-xs">no data</Muted></Td>;
+                    }
+                    const pct = Math.round(stat.hitRate * 100);
+                    const color =
+                      pct >= 40 ? "text-ok" :
+                      pct >= 20 ? "text-warn" :
+                      pct >= 5  ? "text-orange-500" :
+                                  "text-ink-faint";
+                    return (
+                      <Td title={`${stat.indicatorCount} indicators; ${pct}% confirmed malicious by enrichment`}>
+                        <div className="flex items-center gap-1.5">
+                          <div className="h-1.5 w-10 overflow-hidden rounded-full bg-surface-3">
+                            <div
+                              className={`h-full rounded-full ${
+                                pct >= 40 ? "bg-ok" :
+                                pct >= 20 ? "bg-warn" :
+                                pct >= 5  ? "bg-orange-500" :
+                                            "bg-ink-faint"
+                              }`}
+                              style={{ width: `${Math.max(2, pct)}%` }}
+                            />
+                          </div>
+                          <span className={`tabular text-xs ${color}`}>{pct}%</span>
+                        </div>
+                      </Td>
+                    );
+                  })()}
                   <Td className="tabular text-xs text-ink-muted">
                     {s.lastRunAt
                       ? s.lastRunAt.toISOString().slice(0, 16).replace("T", " ")
