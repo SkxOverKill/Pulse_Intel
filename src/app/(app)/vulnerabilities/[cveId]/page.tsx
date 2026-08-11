@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth/dal";
 import { Card, CardHeader, EmptyState } from "@/components/ui/primitives";
 import { DetailRow, Muted, PageHeader } from "@/components/ui/page";
 import { CveReportActions } from "./report-actions";
+import { computePriority, PRIORITY_COLORS } from "@/lib/vuln/priority";
 
 export async function generateMetadata(props: {
   params: Promise<{ cveId: string }>;
@@ -114,6 +115,13 @@ export default async function VulnerabilityPage(props: {
       reports: { include: { report: true }, orderBy: { confidence: "desc" } },
     },
   });
+
+  const priority = computePriority(
+    vuln.cvssV3 ?? vuln.cvssV4,
+    vuln.epssScore,
+    vuln.knownExploited,
+  );
+  const priorityColors = PRIORITY_COLORS[priority.tier];
 
   const reportData = {
     cveId,
@@ -253,6 +261,21 @@ export default async function VulnerabilityPage(props: {
         <div className="lg:col-span-1">
           <Card>
             <CardHeader title="Scoring" />
+            {/* Priority score — the first number a VM team should look at */}
+            <div className="border-b border-line px-4 py-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] text-ink-muted">Priority score</p>
+                  <p className="text-[11px] text-ink-faint mt-0.5">{priority.reasoning}</p>
+                </div>
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-bold ${priorityColors.bg} ${priorityColors.text} ${priorityColors.border}`}
+                >
+                  <span className="tabular text-lg">{priority.score}</span>
+                  <span className="text-xs font-medium opacity-80">{priority.label}</span>
+                </span>
+              </div>
+            </div>
             <div className="space-y-4 px-4 py-4">
               <Meter
                 label="CVSS v3"

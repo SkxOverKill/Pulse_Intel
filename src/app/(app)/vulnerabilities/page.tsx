@@ -8,6 +8,7 @@ import { Pagination, Table, Td, Th, Tr } from "@/components/ui/table";
 import { Muted, PageHeader } from "@/components/ui/page";
 import { extractProduct } from "@/lib/vuln/product";
 import { VulnGroupToggle } from "./vuln-group-toggle";
+import { computePriority, PRIORITY_COLORS } from "@/lib/vuln/priority";
 
 export const metadata = { title: "Vulnerabilities · Pulse Intelligence" };
 
@@ -136,9 +137,9 @@ export default async function VulnerabilitiesPage(props: {
                 <tr>
                   <Th>CVE</Th>
                   <Th>Description</Th>
+                  <Th title="Composite priority: KEV + EPSS + CVSS">Priority</Th>
                   <Th className="text-right">CVSS</Th>
                   <Th className="text-right">EPSS</Th>
-                  <Th>Status</Th>
                   <Th>Published</Th>
                 </tr>
               </thead>
@@ -146,7 +147,10 @@ export default async function VulnerabilitiesPage(props: {
                 {groupVulns(vulns).map((group) => {
                   const [lead, ...rest] = group;
                   const product = extractProduct(lead.description);
-                  const row = (v: (typeof vulns)[number]) => (
+                  const row = (v: (typeof vulns)[number]) => {
+                    const priority = computePriority(v.cvssV3 ?? v.cvssV4, v.epssScore, v.knownExploited);
+                    const colors = PRIORITY_COLORS[priority.tier];
+                    return (
                     <Tr key={v.id}>
                       <Td>
                         <Link
@@ -161,30 +165,29 @@ export default async function VulnerabilitiesPage(props: {
                           {v.description ?? <Muted>—</Muted>}
                         </span>
                       </Td>
+                      <Td>
+                        <span
+                          className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] font-semibold ${colors.bg} ${colors.text} ${colors.border}`}
+                          title={priority.reasoning}
+                        >
+                          <span className="tabular font-bold">{priority.score}</span>
+                          {priority.label}
+                        </span>
+                      </Td>
                       <Td className={`tabular text-right text-xs ${cvssTone(v.cvssV3)}`}>
                         {v.cvssV3?.toFixed(1) ?? v.cvssV4?.toFixed(1) ?? "—"}
                       </Td>
                       <Td className="tabular text-right text-xs text-ink-muted">
-                        {/* EPSS is a probability; percent is how analysts read it. */}
                         {v.epssScore != null
                           ? `${(v.epssScore * 100).toFixed(1)}%`
                           : "—"}
-                      </Td>
-                      <Td>
-                        {v.knownExploited ? (
-                          <span className="rounded border border-sev-critical/40 bg-sev-critical/10 px-1.5 py-0.5 text-[11px] text-sev-critical">
-                            exploited
-                          </span>
-                        ) : (
-                          <Muted>—</Muted>
-                        )}
                       </Td>
                       <Td className="tabular text-xs text-ink-muted">
                         {v.publishedAt?.toISOString().slice(0, 10) ??
                           v.kevDateAdded?.toISOString().slice(0, 10) ?? <Muted>—</Muted>}
                       </Td>
                     </Tr>
-                  );
+                  );};
 
                   if (rest.length === 0) return row(lead);
 
