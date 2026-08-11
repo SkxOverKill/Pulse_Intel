@@ -10,6 +10,7 @@ import {
 } from "@/lib/hunting/schema";
 import { compileWhere } from "@/lib/hunting/compile";
 import { compileDetectionQuery } from "@/lib/hunting/detections";
+import { HUNT_TEMPLATES } from "@/lib/hunting/templates";
 
 const ok = (q: unknown): HuntQueryAst => {
   const r = validateHuntQuery(q);
@@ -271,5 +272,13 @@ describe("compileDetectionQuery", () => {
     });
 
     expect(compileDetectionQuery(ast, "lucene")).toBe('value:*evil*');
+  });
+});
+
+describe("hunt templates", () => {
+  it("all built-in templates validate", () => {
+    for (const template of HUNT_TEMPLATES) {
+      expect(validateHuntQuery(template.ast)).toMatchObject({ ok: true });
+    }
   });
 });

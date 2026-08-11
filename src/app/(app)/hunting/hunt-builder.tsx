@@ -27,6 +27,7 @@ import {
   compileDetectionQuery,
   type DetectionLanguage,
 } from "@/lib/hunting/detections";
+import { HUNT_TEMPLATES, huntTemplateById } from "@/lib/hunting/templates";
 import { saveHunt } from "./actions";
 
 type HuntInput = {
@@ -95,6 +96,19 @@ export function HuntBuilder({
     );
   }
 
+  function applyTemplate(id: string) {
+    const template = huntTemplateById(id);
+    if (!template) return;
+    setMatch(template.ast.match);
+    setRows(
+      template.ast.conditions.map((condition) => ({
+        field: condition.field,
+        op: condition.op,
+        value: condition.value,
+      })),
+    );
+  }
+
   const conditions: Condition[] = rows.map((r) => ({
     field: r.field,
     op: r.op,
@@ -147,6 +161,33 @@ export function HuntBuilder({
       </div>
 
       <div className="rounded-[--radius-card] border border-line bg-surface p-5">
+        {!hunt ? (
+          <div className="mb-4 rounded-md border border-line/60 bg-base/40 p-3">
+            <label className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+              Start from template
+              <select
+                defaultValue=""
+                onChange={(e) => {
+                  applyTemplate(e.target.value);
+                  e.currentTarget.value = "";
+                }}
+                className="min-w-60 rounded-md border border-line bg-base px-2 py-1.5 text-sm text-ink focus:border-brand focus:outline-none"
+              >
+                <option value="">Choose a template…</option>
+                {HUNT_TEMPLATES.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="mt-2 grid gap-1 text-[11px] text-ink-faint sm:grid-cols-2">
+              {HUNT_TEMPLATES.map((template) => (
+                <span key={template.id}>{template.description}</span>
+              ))}
+            </div>
+          </div>
+        ) : null}
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-ink">Conditions</h2>
           <label className="flex items-center gap-2 text-xs text-ink-muted">
