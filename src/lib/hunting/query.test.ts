@@ -9,6 +9,7 @@ import {
   type HuntQueryAst,
 } from "@/lib/hunting/schema";
 import { compileWhere } from "@/lib/hunting/compile";
+import { compileDetectionQuery } from "@/lib/hunting/detections";
 
 const ok = (q: unknown): HuntQueryAst => {
   const r = validateHuntQuery(q);
@@ -232,5 +233,43 @@ describe("field catalogue", () => {
 
   it("every field declares at least one operator", () => {
     for (const f of HUNT_FIELDS) expect(f.ops.length).toBeGreaterThan(0);
+  });
+});
+
+describe("compileDetectionQuery", () => {
+  it("exports KQL for Sentinel-style workflows", () => {
+    const ast = ok({
+      entity: "indicator",
+      match: "all",
+      conditions: [
+        { field: "type", op: "eq", value: "DOMAIN" },
+        { field: "confidence", op: "gte", value: "80" },
+      ],
+    });
+
+    expect(compileDetectionQuery(ast, "kql")).toContain(
+      '| where type == "DOMAIN" AND confidence >= 80',
+    );
+  });
+
+  it("exports SPL with OR grouping for multi-value conditions", () => {
+    const ast = ok({
+      entity: "indicator",
+      match: "all",
+      conditions: [{ field: "severity", op: "in", value: ["HIGH", "CRITICAL"] }],
+    });
+
+    expect(compileDetectionQuery(ast, "spl")).toContain(
+      '(severity="HIGH" OR severity="CRITICAL")',
+    );
+  });
+
+  it("exports Lucene wildcard searches for contains conditions", () => {
+    const ast = ok({
+      entity: "indicator",
+      conditions: [{ field: "value", op: "contains", value: "evil" }],
+    });
+
+    expect(compileDetectionQuery(ast, "lucene")).toBe('value:*evil*');
   });
 });

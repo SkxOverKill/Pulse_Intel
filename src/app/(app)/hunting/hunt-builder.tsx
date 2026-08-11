@@ -22,6 +22,11 @@ import {
   type HuntQueryAst,
   type Operator,
 } from "@/lib/hunting/schema";
+import {
+  DETECTION_LANGUAGES,
+  compileDetectionQuery,
+  type DetectionLanguage,
+} from "@/lib/hunting/detections";
 import { saveHunt } from "./actions";
 
 type HuntInput = {
@@ -63,6 +68,8 @@ export function HuntBuilder({
   const errors = !state.ok ? state.fieldErrors : undefined;
 
   const [match, setMatch] = useState<HuntMatch>(hunt?.ast.match ?? "all");
+  const [detectionLanguage, setDetectionLanguage] =
+    useState<DetectionLanguage>("kql");
   const [rows, setRows] = useState<Row[]>(
     hunt?.ast.conditions.length
       ? hunt.ast.conditions.map((c) => ({ field: c.field, op: c.op, value: c.value }))
@@ -95,6 +102,7 @@ export function HuntBuilder({
   }));
   const ast: HuntQueryAst = { entity: "indicator", match, conditions };
   const queryJson = JSON.stringify(ast);
+  const detectionQuery = compileDetectionQuery(ast, detectionLanguage);
 
   return (
     <form action={formAction} className="space-y-5">
@@ -179,6 +187,34 @@ export function HuntBuilder({
           <span className="text-ink-faint">Reads as: </span>
           {conditions.length ? describeHunt(ast) : "no conditions yet"}
         </p>
+      </div>
+
+      <div className="rounded-[--radius-card] border border-line bg-surface p-5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-ink">Detection query</h2>
+          <div className="flex rounded-md border border-line bg-base p-0.5">
+            {DETECTION_LANGUAGES.map((language) => (
+              <button
+                key={language.id}
+                type="button"
+                onClick={() => setDetectionLanguage(language.id)}
+                className={
+                  "rounded px-2.5 py-1 text-xs transition-colors " +
+                  (detectionLanguage === language.id
+                    ? "bg-surface-2 text-ink"
+                    : "text-ink-muted hover:text-ink")
+                }
+              >
+                {language.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <textarea
+          readOnly
+          value={detectionQuery}
+          className="min-h-28 w-full resize-y rounded-md border border-line bg-base p-3 font-mono text-xs text-ink outline-none"
+        />
       </div>
 
       <div className="rounded-[--radius-card] border border-line bg-surface p-5">
