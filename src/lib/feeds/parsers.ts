@@ -113,7 +113,10 @@ function decodeXml(s: string | null): string | null {
  * embedded newlines. abuse.ch feeds ship comment preambles starting with '#'.
  */
 export function parseCsv(text: string): Record<string, string>[] {
-  const rows = splitCsvRows(text);
+  // Strip a UTF-8 BOM. Several abuse.ch and EPSS files ship one; without this
+  // the first header cell is "\uFEFFurl", so `r.url` lookups silently return
+  // empty and the whole feed ingests nothing while reporting "ok".
+  const rows = splitCsvRows(text.replace(/^\uFEFF/, ""));
   const dataRows = rows.filter(
     (r) => r.length > 0 && !(r[0] ?? "").trimStart().startsWith("#"),
   );

@@ -104,6 +104,11 @@ describe("parseCsv", () => {
     expect(parseCsv("a,b")).toEqual([]);
     expect(parseCsv("")).toEqual([]);
   });
+
+  it("strips a UTF-8 BOM so the first header cell still matches", () => {
+    const rows = parseCsv("\uFEFFurl,status\nhttps://evil.example,online");
+    expect(rows[0]).toEqual({ url: "https://evil.example", status: "online" });
+  });
 });
 
 describe("parseKev", () => {
