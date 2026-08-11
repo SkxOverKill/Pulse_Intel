@@ -23,6 +23,7 @@ Phases 1-7 of 8 are implemented. Phase 8 is hardening: large-table partitioning 
 deeper security review.
 
 See [`HISTORY.md`](HISTORY.md) for the development timeline and public-release cleanup notes.
+See [`ROADMAP.md`](ROADMAP.md) for planned hardening and community work.
 
 ## Stack
 
@@ -178,5 +179,8 @@ For database operations, see [`docs/BACKUP_RESTORE.md`](docs/BACKUP_RESTORE.md).
 Contributions are welcome. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md), open focused pull
 requests, and include verification notes. Good first areas are feed parsers, API examples,
 documentation, UI polish, and Phase 8 hardening.
+
+Maintainer expectations are documented in [`MAINTAINERS.md`](MAINTAINERS.md). Program-review
+context is available in [`docs/MAINTAINER_APPLICATION.md`](docs/MAINTAINER_APPLICATION.md).
 
 Security issues should follow [`SECURITY.md`](SECURITY.md).
