@@ -62,6 +62,10 @@ export function parseRss(xml: string): ParsedNewsItem[] {
 
     const summaryRaw =
       pick(block, "description") ??
+      // WordPress blogs (e.g. Check Point Research) keep the full post here
+      // and a truncated teaser in <description>; prefer the teaser, fall back
+      // to the full text when the teaser is missing.
+      pick(block, "content:encoded") ??
       pick(block, "summary") ??
       pick(block, "content");
 
@@ -101,6 +105,16 @@ function decodeXml(s: string | null): string | null {
     .replace(/&apos;/g, "'")
     .replace(/&#x27;/g, "'")
     .replace(/&nbsp;/g, " ")
+    // Numeric character references — WordPress teasers use &#8230; for
+    // ellipses and friends. Control characters and lone surrogates are
+    // dropped rather than emitted into stored text.
+    .replace(/&#(?:x([0-9a-f]+)|(\d+));/gi, (match, hex: string, dec: string) => {
+      const code = hex ? parseInt(hex, 16) : parseInt(dec, 10);
+      if (code < 0x20 || (code >= 0xd800 && code <= 0xdfff) || code > 0x10ffff) {
+        return match;
+      }
+      return String.fromCodePoint(code);
+    })
     // Ampersand last, or it would corrupt the entities above.
     .replace(/&amp;/g, "&")
     .trim();

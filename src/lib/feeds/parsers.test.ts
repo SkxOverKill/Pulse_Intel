@@ -1,5 +1,11 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseCsv, parseEpss, parseKev, parseNvd, parseRss } from "./parsers";
+
+const CHECKPOINT_FIXTURE = readFileSync(
+  new URL("./fixtures/checkpoint-research.xml", import.meta.url),
+  "utf8",
+);
 
 describe("parseRss", () => {
   it("parses RSS 2.0 items", () => {
@@ -65,6 +71,73 @@ describe("parseRss", () => {
   it("returns nothing for empty or junk input", () => {
     expect(parseRss("")).toEqual([]);
     expect(parseRss("<html><body>not a feed</body></html>")).toEqual([]);
+  });
+
+  it("falls back to content:encoded when there is no description", () => {
+    const xml = `<rss><item>
+      <title>Full text only</title>
+      <link>https://example.com/full</link>
+      <content:encoded><![CDATA[<p>The whole post, wrapped in HTML.</p>]]></content:encoded>
+    </item></rss>`;
+    const items = parseRss(xml);
+    expect(items[0].summary).toBe("The whole post, wrapped in HTML.");
+  });
+
+  it("decodes numeric character references (decimal and hex)", () => {
+    const xml = `<rss><item>
+      <title>Teaser</title>
+      <link>https://example.com/1</link>
+      <description>cut off [&#8230;] and a hex space&#x20;here</description>
+    </item></rss>`;
+    const items = parseRss(xml);
+    expect(items[0].summary).toBe("cut off […] and a hex space here");
+  });
+
+  it("leaves invalid numeric references alone", () => {
+    const xml = `<rss><item>
+      <title>Teaser</title>
+      <link>https://example.com/2</link>
+      <description>control char &#1; must survive as text</description>
+    </item></rss>`;
+    const items = parseRss(xml);
+    expect(items[0].summary).toBe("control char &#1; must survive as text");
+  });
+});
+
+describe("Check Point Research feed fixture", () => {
+  // Trimmed sample of the live WordPress feed: CDATA-wrapped HTML summaries,
+  // content:encoded full text, isPermaLink="false" guids.
+  it("parses every item in the fixture", () => {
+    const items = parseRss(CHECKPOINT_FIXTURE);
+    expect(items).toHaveLength(2);
+  });
+
+  it("prefers <link> over the isPermaLink=false <guid>", () => {
+    const items = parseRss(CHECKPOINT_FIXTURE);
+    expect(items[0].url).toBe(
+      "https://research.checkpoint.com/2026/10th-august-threat-intelligence-report/",
+    );
+    expect(items[0].url).not.toContain("?p=");
+  });
+
+  it("unwraps CDATA and strips HTML from the summary", () => {
+    const items = parseRss(CHECKPOINT_FIXTURE);
+    expect(items[0].summary).toContain("Threat Intelligence Bulletin");
+    expect(items[0].summary).not.toMatch(/<[^>]+>/);
+    expect(items[0].summary).not.toContain("<a ");
+  });
+
+  it("decodes numeric entities inside CDATA summaries", () => {
+    const items = parseRss(CHECKPOINT_FIXTURE);
+    expect(items[0].summary).toContain("…");
+    expect(items[0].summary).not.toContain("&#8230;");
+  });
+
+  it("parses the RFC 822 publish date", () => {
+    const items = parseRss(CHECKPOINT_FIXTURE);
+    expect(items[0].publishedAt.getUTCFullYear()).toBe(2026);
+    expect(items[0].publishedAt.getUTCMonth()).toBe(7); // August
+    expect(items[0].publishedAt.getUTCDate()).toBe(10);
   });
 });
 
