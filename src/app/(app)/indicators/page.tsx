@@ -12,6 +12,7 @@ import {
 import { Pagination, Table, Td, Th, Tr } from "@/components/ui/table";
 import { Muted, PageHeader, Tag } from "@/components/ui/page";
 import { IndicatorFilters } from "./filters";
+import { ExportMenu } from "./export-menu";
 
 export const metadata = { title: "Indicators · Pulse Intelligence" };
 
@@ -66,15 +67,18 @@ export default async function IndicatorsPage(props: {
         title="Indicators"
         description="Observables under management. Deduplicated on ingest."
         action={
-          user && hasRole(user, "ANALYST") ? (
-            <Link
-              href="/indicators/import"
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-brand px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-hover"
-            >
-              <Upload className="size-4" />
-              Bulk import
-            </Link>
-          ) : null
+          <div className="flex shrink-0 items-center gap-2">
+            <ExportMenu />
+            {user && hasRole(user, "ANALYST") ? (
+              <Link
+                href="/indicators/import"
+                className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-hover"
+              >
+                <Upload className="size-4" />
+                Bulk import
+              </Link>
+            ) : null}
+          </div>
         }
       />
 

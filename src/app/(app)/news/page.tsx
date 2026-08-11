@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { ExternalLink } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
 import { Card, EmptyState } from "@/components/ui/primitives";
@@ -84,15 +83,20 @@ export default async function NewsPage(props: {
               <Card key={item.id} className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noopener noreferrer nofollow"
+                    <Link
+                      href={`/news/${item.id}`}
                       className="group inline-flex items-start gap-1.5 text-sm font-medium text-ink hover:text-brand"
                     >
                       {item.title}
-                      <ExternalLink className="mt-0.5 size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
-                    </a>
+                      {item.content ? (
+                        <span
+                          className="mt-0.5 rounded bg-ok/15 px-1 py-px text-[9px] font-medium uppercase tracking-wide text-ok"
+                          title="Full article text available"
+                        >
+                          full text
+                        </span>
+                      ) : null}
+                    </Link>
 
                     {item.summary ? (
                       <p className="mt-1 line-clamp-2 text-xs text-ink-muted">

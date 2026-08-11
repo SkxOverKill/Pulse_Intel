@@ -1,14 +1,18 @@
 # Pulse Intelligence
 
-Self-hosted Threat Intelligence Platform — APT actor tracking, campaigns, IOC management
+Open-source, self-hosted Threat Intelligence Platform — APT actor tracking, campaigns, IOC management
 with bulk enrichment, MITRE ATT&CK mapping, feed ingestion, threat hunting, and search.
 
-Full plan and rationale: [`../pulse_intelligence_spec.md`](../pulse_intelligence_spec.md)
+Full plan and rationale: [`pulse_intelligence_spec.md`](pulse_intelligence_spec.md)
 
-**Status: Phases 1–5 of 8 complete.** Foundation, auth, RBAC, audit log; CRUD for actors,
+**Status: Phases 1–7 of 8 complete.** Foundation, auth, RBAC, audit log; CRUD for actors,
 campaigns, indicators, reports and feeds; IOC bulk import; global search; MITRE ATT&CK v19.1
 with matrix and technique mapping; enrichment (VirusTotal / AbuseIPDB / OTX) behind a Redis
-rate limiter; and 18 automated feeds refreshing hourly.
+rate limiter; 18 automated feeds; structured threat hunting; IOC exports; public API keys; and
+scheduled reports.
+
+Pulse Intelligence is built for analysts, junior intel analysts, SOC teams, students, and small
+security teams who need a practical CTI workbench without buying a commercial platform first.
 
 ## Stack
 
@@ -18,7 +22,7 @@ rate limiter; and 18 automated feeds refreshing hourly.
 | Database | PostgreSQL + Prisma 7 (via `@prisma/adapter-pg`) |
 | Styling | Tailwind v4 (CSS-first `@theme` tokens) |
 | Auth | Argon2id + DB-backed session cookies |
-| Queues | BullMQ + Redis *(Phase 4)* |
+| Queues | BullMQ + Redis |
 
 ## Running locally
 
@@ -53,7 +57,7 @@ what's in `.env`, update `.env` to match.
 | `viewer@pulse.local` | READONLY |
 
 Password for all three: `PulseAdmin!2026` (override with `SEED_PASSWORD`).
-**Development defaults — change them before this is reachable by anyone else.**
+**Development defaults only — change them before this is reachable by anyone else.**
 
 ## Scripts
 
@@ -67,6 +71,9 @@ Password for all three: `PulseAdmin!2026` (override with `SEED_PASSWORD`).
 | `npm run db:migrate` | Standard `prisma migrate dev` (real Postgres only) |
 | `npm run db:migrate:offline -- <name>` | Migration workaround for the dev server — see below |
 | `npm run attack:sync` | Pull MITRE ATT&CK (enterprise; `--all` for every domain) |
+| `npm run verify:hunting` | Verify scheduled hunt matching and alert behavior |
+| `npm run verify:api` | Verify public API auth, scopes, and whitelist handling |
+| `npm run verify:reports` | Verify scheduled report generation |
 
 ## Automation (feeds + enrichment)
 

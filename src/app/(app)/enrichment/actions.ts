@@ -20,7 +20,9 @@ export async function enrichAllPending(
   formData: FormData,
 ): Promise<ActionResult<{ queued: number }>> {
   return withAction(
-    { role: "ANALYST", schema: z.object({}), formData },
+    // Queueing thousands of jobs against a shared, days-long-draining free-tier
+    // quota is a platform-wide decision, not a per-analyst one — ADMIN only.
+    { role: "ADMIN", schema: z.object({}), formData },
     async (_input, user) => {
       const pending = await db.indicator.findMany({
         where: { whitelisted: false, enrichments: { none: {} } },

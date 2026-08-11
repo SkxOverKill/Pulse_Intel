@@ -1,4 +1,3 @@
-import type { IndicatorType } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { consumeToken } from "@/lib/enrichment/limiter";
 import { getProvider, providersFor } from "@/lib/enrichment/registry";
@@ -152,8 +151,26 @@ export async function enrichAll(
   const outcomes: EnrichOutcome[] = [];
   // Sequential, in registry order: cheap providers first, and an early
   // MALICIOUS from OTX still lets the others add corroboration.
-  for (const provider of providersFor(indicator.type)) {
-    outcomes.push(await enrichOne(indicatorId, provider.name, opts));
+  //
+  // VirusTotal is deliberately excluded from this path (single-key free tier
+  // is too scarce to spend on every ingested indicator automatically) — it's
+  // reserved for the analyst-triggered Lookup and Bulk lookup pages, which
+  // call enrichOne() per provider directly rather than going through
+  // enrichAll(). Revisit once more VirusTotal keys are added.
+  for (const provider of providersFor(indicator.type).filter((p) => p.name !== "virustotal")) {
+    const outcome = await enrichOne(indicatorId, provider.name, opts);
+    outcomes.push(outcome);
+
+    // OTX's own "known-good" signal (its validation list, not a low pulse
+    // count) is unambiguous — the same reasoning that already lets AbuseIPDB's
+    // whitelist short-circuit a check. Spending scarce VirusTotal/AbuseIPDB
+    // quota re-confirming that is wasted spend, so skip the rest of the
+    // (scarcer) providers for this indicator. A SUSPICIOUS/MALICIOUS-leaning
+    // OTX result is deliberately NOT treated as confident here — that's
+    // corroboration-worthy, not a reason to stop looking.
+    if (provider.name === "otx" && outcome.status === "fetched" && outcome.score === 0) {
+      break;
+    }
   }
   return outcomes;
 }

@@ -89,7 +89,7 @@ export function detectType(rawValue: string): IndicatorType | null {
  * normalize(normalize(x)) === normalize(x).
  */
 export function normalize(rawValue: string, type: IndicatorType): string {
-  let v = refang(rawValue).trim();
+  const v = refang(rawValue).trim();
 
   switch (type) {
     case "MD5":

@@ -1,9 +1,10 @@
 import Link from "next/link";
+import { Clock3 } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser, hasRole } from "@/lib/auth/dal";
 import { Card, ConfidenceBar, EmptyState, TlpBadge } from "@/components/ui/primitives";
 import { Pagination, Table, Td, Th, Tr } from "@/components/ui/table";
-import { Muted, NewButton, PageHeader, Tag } from "@/components/ui/page";
+import { Muted, NewButton, PageHeader, SecondaryLink, Tag } from "@/components/ui/page";
 
 export const metadata = { title: "Reports · Pulse Intelligence" };
 
@@ -35,9 +36,17 @@ export default async function ReportsPage(props: {
         title="Reports"
         description="Analyst-authored intelligence. IOCs can be extracted from the body automatically."
         action={
-          user && hasRole(user, "ANALYST") ? (
-            <NewButton href="/reports/new" label="New report" />
-          ) : null
+          <div className="flex shrink-0 items-center gap-2">
+            {user && hasRole(user, "ANALYST") ? (
+              <SecondaryLink href="/reports/scheduled">
+                <Clock3 className="size-4" />
+                Scheduled reports
+              </SecondaryLink>
+            ) : null}
+            {user && hasRole(user, "ANALYST") ? (
+              <NewButton href="/reports/new" label="New report" />
+            ) : null}
+          </div>
         }
       />
 

@@ -1,11 +1,11 @@
-import { Activity, AlertTriangle } from "lucide-react";
+import { Activity, AlertTriangle, ListChecks, Search } from "lucide-react";
 import { db } from "@/lib/db";
-import { requireUser } from "@/lib/auth/dal";
+import { hasRole, requireUser } from "@/lib/auth/dal";
 import { configuredProviders } from "@/lib/enrichment/registry";
 import { estimateDrainMs, getQuotaStatus } from "@/lib/enrichment/limiter";
 import { getQueueStats } from "@/lib/queue/queues";
 import { Card, CardHeader, EmptyState } from "@/components/ui/primitives";
-import { PageHeader } from "@/components/ui/page";
+import { PageHeader, SecondaryLink } from "@/components/ui/page";
 import { Table, Td, Th, Tr } from "@/components/ui/table";
 import { EnrichAllButton } from "./enrich-button";
 
@@ -22,7 +22,8 @@ function humanizeMs(ms: number): string {
 }
 
 export default async function EnrichmentPage() {
-  await requireUser();
+  const user = await requireUser();
+  const isAdmin = hasRole(user, "ADMIN");
 
   const providers = configuredProviders();
 
@@ -56,15 +57,33 @@ export default async function EnrichmentPage() {
     queueError = err instanceof Error ? err.message : String(err);
   }
 
-  // The scarcest provider governs how long a full pass actually takes.
-  const worstEta = quotas.reduce((max, q) => Math.max(max, q.etaMs), 0);
+  // The scarcest provider governs how long a full pass actually takes — but
+  // VirusTotal is excluded from the automatic bulk-enrichment path (see
+  // enrichAll() in lib/enrichment/enrich.ts), so its quota shouldn't inflate
+  // the ETA for a queue it never touches.
+  const worstEta = quotas.reduce(
+    (max, q) => (q.provider.name === "virustotal" ? max : Math.max(max, q.etaMs)),
+    0,
+  );
 
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
         title="Enrichment"
         description="Provider lookups are cache-first and rate-limited. Free-tier quotas are the binding constraint on bulk work."
-        action={<EnrichAllButton pending={pending} />}
+        action={
+          <div className="flex shrink-0 items-center gap-2">
+            <SecondaryLink href="/enrichment/lookup">
+              <Search className="size-4" />
+              Lookup
+            </SecondaryLink>
+            <SecondaryLink href="/enrichment/bulk">
+              <ListChecks className="size-4" />
+              Bulk lookup
+            </SecondaryLink>
+            {isAdmin ? <EnrichAllButton pending={pending} /> : null}
+          </div>
+        }
       />
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -168,7 +187,13 @@ export default async function EnrichmentPage() {
                       )}
                     </Td>
                     <Td className="tabular text-right text-xs text-ink-muted">
-                      {pending === 0 ? "—" : humanizeMs(etaMs)}
+                      {provider.name === "virustotal" ? (
+                        <span className="text-ink-faint">not used for bulk</span>
+                      ) : pending === 0 ? (
+                        "—"
+                      ) : (
+                        humanizeMs(etaMs)
+                      )}
                     </Td>
                   </Tr>
                 );

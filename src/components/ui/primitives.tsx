@@ -43,23 +43,29 @@ export function CardHeader({
   );
 }
 
-const SEVERITY_STYLES: Record<Severity, string> = {
-  CRITICAL: "border-sev-critical/40 bg-sev-critical/10 text-sev-critical",
-  HIGH: "border-sev-high/40 bg-sev-high/10 text-sev-high",
-  MEDIUM: "border-sev-medium/40 bg-sev-medium/10 text-sev-medium",
-  LOW: "border-sev-low/40 bg-sev-low/10 text-sev-low",
-  INFO: "border-sev-info/40 bg-sev-info/10 text-sev-info",
+const SEVERITY_DOT: Record<Severity, string> = {
+  CRITICAL: "bg-sev-critical",
+  HIGH: "bg-sev-high",
+  MEDIUM: "bg-sev-medium",
+  LOW: "bg-sev-low",
+  INFO: "bg-sev-info",
 };
 
+const SEVERITY_TEXT: Record<Severity, string> = {
+  CRITICAL: "text-sev-critical",
+  HIGH: "text-sev-high",
+  MEDIUM: "text-sev-medium",
+  LOW: "text-sev-low",
+  INFO: "text-sev-info",
+};
+
+/// Dot + label rather than a filled/bordered pill — severity is read at a
+/// glance down a whole column, and a bare dot scans faster than a badge.
 export function SeverityBadge({ severity }: { severity: Severity }) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded border px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide",
-        SEVERITY_STYLES[severity],
-      )}
-    >
-      {severity}
+    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide">
+      <span className={cn("size-1.5 shrink-0 rounded-[2px]", SEVERITY_DOT[severity])} />
+      <span className={SEVERITY_TEXT[severity]}>{severity}</span>
     </span>
   );
 }

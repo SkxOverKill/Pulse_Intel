@@ -43,6 +43,9 @@ next-env.d.ts
 
 /src/generated/prisma
 
+# local design/export artifacts
+PulseIntel Redesign.dc.html
+
 # `prisma init` installs identical skill docs for three editors. Keep the
 # Claude Code copy; the others are pure duplication and regenerable.
 /.windsurf

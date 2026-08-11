@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -58,14 +59,14 @@ const SECTIONS: { heading: string; items: NavItem[] }[] = [
     heading: "Operations",
     items: [
       { href: "/attack", label: "ATT&CK Matrix", icon: Radar },
-      { href: "/hunting", label: "Threat Hunting", icon: Crosshair, soon: true },
+      { href: "/hunting", label: "Threat Hunting", icon: Crosshair },
       { href: "/feeds", label: "Feeds", icon: Rss },
     ],
   },
   {
     heading: "System",
     items: [
-      { href: "/settings", label: "Settings", icon: Settings, soon: true },
+      { href: "/settings", label: "Settings", icon: Settings },
       { href: "/audit", label: "Audit Log", icon: Globe, soon: true },
     ],
   },
@@ -77,8 +78,8 @@ export function Sidebar() {
   return (
     <nav className="flex h-full w-60 shrink-0 flex-col border-r border-line bg-surface">
       <div className="flex items-center gap-2.5 border-b border-line px-4 py-3.5">
-        <span className="grid size-8 place-items-center rounded-md bg-brand/15 text-brand">
-          <Radar className="size-4.5" strokeWidth={2.25} />
+        <span className="grid size-8 shrink-0 place-items-center">
+          <Image src="/logo.png" alt="" width={32} height={32} priority />
         </span>
         <span className="leading-tight">
           <span className="block text-sm font-semibold tracking-tight text-ink">
@@ -91,7 +92,7 @@ export function Sidebar() {
       <div className="flex-1 overflow-y-auto px-2 py-3">
         {SECTIONS.map((section) => (
           <div key={section.heading} className="mb-4">
-            <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
+            <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#454b56]">
               {section.heading}
             </p>
             <ul className="space-y-0.5">
@@ -107,7 +108,7 @@ export function Sidebar() {
                       href={item.href}
                       aria-disabled={item.soon}
                       className={cn(
-                        "group flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors",
+                        "group relative flex items-center gap-2.5 rounded-[7px] px-2.5 py-1.5 text-sm transition-colors",
                         active
                           ? "bg-brand/12 text-ink"
                           : "text-ink-muted hover:bg-surface-2 hover:text-ink",
@@ -117,6 +118,9 @@ export function Sidebar() {
                         if (item.soon) e.preventDefault();
                       }}
                     >
+                      {active ? (
+                        <span className="absolute -left-2 top-1 bottom-1 w-[2.5px] rounded-full bg-brand" />
+                      ) : null}
                       <Icon
                         className={cn(
                           "size-4 shrink-0",

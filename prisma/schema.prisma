@@ -152,6 +152,7 @@ model User {
   actorAliases       ActorAlias[]
   authoredReports    Report[]
   huntQueries        HuntQuery[]
+  scheduledReports   ScheduledReport[]
 
   @@index([email])
 }
@@ -509,9 +510,15 @@ model NewsItem {
   source         Source?  @relation(fields: [sourceId], references: [id], onDelete: SetNull)
   tags           String[] @default([])
   relevanceScore Int      @default(0)
+  /// Full article text, extracted from the source page on request (not at
+  /// ingest time — see design note in lib/feeds/article.ts). Null until an
+  /// analyst fetches it.
+  content        String?
+  contentFetchedAt DateTime?
   /// Denormalized auto-link results. Cheap to recompute, not worth join tables.
-  linkedActorIds String[] @default([])
-  linkedCveIds   String[] @default([])
+  linkedActorIds    String[] @default([])
+  linkedCveIds      String[] @default([])
+  linkedCampaignIds String[] @default([])
   createdAt      DateTime @default(now())
 
   @@index([publishedAt])
@@ -553,6 +560,45 @@ model HuntQuery {
   owner         User?     @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+
+  alerts        HuntAlert[]
+
+  @@index([ownerId])
+}
+
+/// One row per scheduled hunt run that turned up *new* matches. This is the
+/// alerting record: the worker writes it, the UI shows it, an analyst
+/// acknowledges it. `indicatorIds` holds the new matches so the alert links
+/// straight to what changed rather than re-running the query.
+model HuntAlert {
+  id           String    @id @default(cuid())
+  huntId       String
+  hunt         HuntQuery @relation(fields: [huntId], references: [id], onDelete: Cascade)
+  matchCount   Int
+  newCount     Int
+  indicatorIds String[]  @default([])
+  acknowledged Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+
+  @@index([huntId])
+  @@index([acknowledged])
+}
+
+/// A recurring intelligence summary. The worker runs it on `schedule`, generates
+/// a markdown body from what changed since `lastRunAt`, and files it as a
+/// normal `Report` — so a scheduled report reads in the UI exactly like an
+/// analyst-authored one, just with no `authorId`.
+model ScheduledReport {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  schedule    String
+  enabled     Boolean   @default(true)
+  lastRunAt   DateTime?
+  ownerId     String?
+  owner       User?     @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([ownerId])
 }

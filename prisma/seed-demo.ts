@@ -222,6 +222,182 @@ const CAMPAIGNS = [
     targetSectors: ["Technology", "Financial"],
     targetCountries: ["United States", "Germany"],
   },
+  {
+    name: "Microsoft Teams Device-Code Phishing",
+    actor: "APT29",
+    status: "ACTIVE",
+    confidence: 85,
+    startDate: "2023-08-01",
+    description:
+      "Highly targeted social engineering via Microsoft Teams messages impersonating technical support or security personnel, abusing OAuth device-code authentication flows to hijack sessions without needing the victim's password.",
+    targetSectors: ["Government", "Technology", "Defense", "NGO"],
+    targetCountries: ["United States", "United Kingdom", "European Union"],
+  },
+  {
+    name: "WinRAR Zero-Day Exploitation (CVE-2023-38831)",
+    actor: "APT28",
+    status: "CONCLUDED",
+    confidence: 80,
+    startDate: "2023-04-01",
+    endDate: "2023-10-01",
+    description:
+      "Phishing campaign exploiting a WinRAR path-traversal flaw that let a decoy document silently execute an attacker script when opened, primarily against Ukrainian government and energy-sector targets.",
+    targetSectors: ["Government", "Energy"],
+    targetCountries: ["Ukraine"],
+  },
+  {
+    name: "Industroyer2 Ukraine Power Grid Attack",
+    actor: "Sandworm Team",
+    status: "CONCLUDED",
+    confidence: 95,
+    startDate: "2022-04-01",
+    endDate: "2022-04-08",
+    description:
+      "Deployment of an updated Industroyer variant against a Ukrainian energy provider's high-voltage substations, intended to cause an outage. Detected and contained before the disruptive payload executed.",
+    targetSectors: ["Energy", "Critical Infrastructure"],
+    targetCountries: ["Ukraine"],
+  },
+  {
+    name: "3CX Supply Chain Compromise",
+    actor: "Lazarus Group",
+    status: "CONCLUDED",
+    confidence: 90,
+    startDate: "2023-02-01",
+    endDate: "2023-04-01",
+    description:
+      "Trojanised 3CX desktop softphone installers distributed a multi-stage backdoor to the software's customers — itself the result of an earlier compromise of a financial trading application whose installer an employee had downloaded, making this a rare double supply-chain attack.",
+    targetSectors: ["Technology", "Telecommunications"],
+    targetCountries: ["Global"],
+  },
+  {
+    name: "JumpCloud Directory Platform Intrusion",
+    actor: "Lazarus Group",
+    status: "CONCLUDED",
+    confidence: 75,
+    startDate: "2023-06-01",
+    endDate: "2023-07-01",
+    description:
+      "Spear-phishing intrusion into JumpCloud's identity/directory platform, followed by targeted abuse of its command-execution framework against a small number of downstream cryptocurrency-sector customers.",
+    targetSectors: ["Technology", "Cryptocurrency"],
+    targetCountries: ["United States"],
+  },
+  {
+    name: "US State Government Zero-Day Intrusions",
+    actor: "APT41",
+    status: "CONCLUDED",
+    confidence: 85,
+    startDate: "2021-05-01",
+    endDate: "2022-02-01",
+    description:
+      "Exploitation of a zero-day in a livestock-management web application to compromise at least six US state government networks, alongside parallel exploitation of USAHerds and Log4Shell against other victims in the same operation.",
+    targetSectors: ["Government"],
+    targetCountries: ["United States"],
+  },
+  {
+    name: "KV Botnet Living-off-the-Land Access",
+    actor: "Volt Typhoon",
+    status: "ACTIVE",
+    confidence: 80,
+    startDate: "2023-01-01",
+    description:
+      "Compromise of end-of-life SOHO routers and firewalls to build a covert proxy network, used to route living-off-the-land access into US critical infrastructure so it blends into ordinary residential traffic. FBI court-authorised operation disrupted the botnet's infrastructure in January 2024, but the underlying access model is assessed to be still in use.",
+    targetSectors: ["Critical Infrastructure", "Communications"],
+    targetCountries: ["United States"],
+  },
+  {
+    name: "Black Basta Ransomware Affiliate Operations",
+    actor: "FIN7",
+    status: "ACTIVE",
+    confidence: 70,
+    startDate: "2022-04-01",
+    description:
+      "Financially motivated intrusions using FIN7's established loader and backdoor tooling to hand off access to the Black Basta ransomware-as-a-service operation for encryption and extortion.",
+    targetSectors: ["Manufacturing", "Healthcare", "Professional Services"],
+    targetCountries: ["United States", "European Union"],
+  },
+  {
+    name: "MGM Resorts & Caesars Entertainment Ransomware Attacks",
+    actor: "Scattered Spider",
+    status: "CONCLUDED",
+    confidence: 90,
+    startDate: "2023-09-01",
+    endDate: "2023-09-15",
+    description:
+      "Voice-phishing (vishing) of IT help-desk staff to reset MFA and gain domain admin access at two major casino/hospitality operators. Caesars paid an extortion demand; MGM refused and suffered roughly ten days of major operational outages across its properties.",
+    targetSectors: ["Hospitality", "Gaming"],
+    targetCountries: ["United States"],
+  },
+  {
+    name: "Snowflake Customer Instance Extortion Campaign",
+    actor: "Scattered Spider",
+    status: "CONCLUDED",
+    confidence: 70,
+    startDate: "2024-04-01",
+    endDate: "2024-07-01",
+    description:
+      "Use of credentials stolen via infostealer malware to access customer instances of the Snowflake cloud data platform that lacked MFA, exfiltrating large volumes of data for extortion. Dozens of organisations were affected, including major retail and telecom brands.",
+    targetSectors: ["Technology", "Retail", "Telecommunications"],
+    targetCountries: ["United States"],
+  },
+  {
+    name: "UK Retail Sector Ransomware Attacks",
+    actor: "Scattered Spider",
+    status: "CONCLUDED",
+    confidence: 75,
+    startDate: "2025-04-01",
+    endDate: "2025-06-01",
+    description:
+      "DragonForce ransomware deployments against major UK retailers via social-engineering of IT help desks, echoing the group's earlier MGM/Caesars playbook. Marks & Spencer suffered a multi-week operational disruption; Co-op and Harrods were also affected.",
+    targetSectors: ["Retail"],
+    targetCountries: ["United Kingdom"],
+  },
+  {
+    name: "PowerShell Backdoor Campaign Against Diplomatic Missions",
+    actor: "APT29",
+    status: "CONCLUDED",
+    confidence: 82,
+    startDate: "2022-01-01",
+    endDate: "2022-10-01",
+    description:
+      "Spearphishing wave against European diplomatic missions delivering an in-memory PowerShell backdoor via HTML smuggling, consistent with APT29's long-running espionage tradecraft against foreign ministries.",
+    targetSectors: ["Government"],
+    targetCountries: ["European Union", "United States"],
+  },
+  {
+    name: "Operation Ghost Writer / Disinformation-Linked Intrusions",
+    actor: "APT28",
+    status: "CONCLUDED",
+    confidence: 65,
+    startDate: "2020-03-01",
+    endDate: "2021-06-01",
+    description:
+      "Website compromises across Eastern Europe used to plant fabricated news content, paired with credential-phishing against military and government personnel in the same target set.",
+    targetSectors: ["Government", "Media", "Defense"],
+    targetCountries: ["Poland", "Lithuania", "Latvia"],
+  },
+  {
+    name: "AndroxGh0st Cloud Credential Exploitation",
+    actor: null,
+    status: "ACTIVE",
+    confidence: 45,
+    startDate: "2023-12-01",
+    description:
+      "Mass scanning for exposed Laravel `.env` files to harvest AWS, Twilio and SendGrid credentials, then abusing them for further phishing infrastructure and cloud resource abuse. CISA/FBI joint advisory in early 2024; activity assessed to be ongoing under multiple unattributed clusters.",
+    targetSectors: ["Technology", "Cloud Hosting"],
+    targetCountries: ["Global"],
+  },
+  {
+    name: "CL0P MOVEit Transfer Mass Exploitation",
+    actor: null,
+    status: "CONCLUDED",
+    confidence: 80,
+    startDate: "2023-05-27",
+    endDate: "2023-09-01",
+    description:
+      "Zero-day SQL injection in the MOVEit Transfer managed file-transfer product exploited at scale to exfiltrate data from thousands of downstream organisations in a single mass-extortion wave, without deploying ransomware payloads.",
+    targetSectors: ["Financial", "Government", "Healthcare", "Professional Services"],
+    targetCountries: ["United States", "United Kingdom", "Global"],
+  },
 ] as const;
 
 // RFC 5737 / RFC 3849 / RFC 2606 documentation ranges only. Never real IOCs.
@@ -275,6 +451,104 @@ Confidence in a single-actor explanation is low. Infrastructure overlap is
 consistent with a shared bulletproof hosting provider rather than a shared
 operator, and no distinctive tooling has been recovered.
 `;
+
+const REPORTS = [
+  {
+    title: "Cloud Administrator Credential Harvesting",
+    summary:
+      "Phishing against cloud administrators followed by OAuth consent abuse. Attribution confidence is deliberately low.",
+    body: REPORT_BODY,
+    publishedAt: "2026-06-15",
+    tlp: "GREEN",
+    confidence: 40,
+    tags: ["phishing", "cloud", "oauth"],
+    actor: null as string | null,
+  },
+  {
+    title: "APT29 Diplomatic Phishing Wave — Q3 Technical Notes",
+    summary:
+      "In-memory PowerShell backdoor delivered via HTML smuggling against European diplomatic missions; ISO/IMG lure containers bypass Mark-of-the-Web.",
+    body: `# Summary
+
+Renewed spearphishing activity against diplomatic and think-tank targets, consistent with prior APT29 tradecraft.
+
+## Delivery
+
+Lure documents impersonate conference invitations from European policy institutes. Delivery relies on ISO/IMG containers to bypass Mark-of-the-Web protections on downloaded attachments.
+
+## Post-compromise
+
+WMI-based persistence and living-off-the-land discovery observed before a lightweight downloader stage deploys.
+
+## Recommendation
+
+Block indicators attached to this report and review mail gateway rules for ISO/IMG attachments from unauthenticated senders.
+`,
+    publishedAt: "2026-07-18",
+    tlp: "AMBER",
+    confidence: 85,
+    tags: ["phishing", "espionage"],
+    actor: "APT29",
+  },
+  {
+    title: "Sandworm Wiper Variant — Technical Analysis",
+    summary:
+      "Two-stage wiper using a signed driver for kernel access, then targeted MBR and engineering-workstation destruction. TLP:RED.",
+    body: `# Summary
+
+Reverse engineering of a newly observed wiper shows a two-stage design: a legitimate signed driver used to gain kernel access, followed by targeted destruction of the MBR and select engineering-workstation file types.
+
+## Attribution notes
+
+The sample shares code-level similarity with prior Industroyer-family tooling but adds anti-forensic timestomping not previously catalogued.
+
+## Handling
+
+TLP:RED — do not redistribute outside the response team without originator approval.
+`,
+    publishedAt: "2026-07-15",
+    tlp: "RED",
+    confidence: 90,
+    tags: ["wiper", "ics", "destructive"],
+    actor: "Sandworm Team",
+  },
+  {
+    title: "Scattered Spider Help-Desk Vishing Playbook",
+    summary:
+      "Breakdown of observed social-engineering scripts used against IT help desks, including LinkedIn-sourced internal terminology.",
+    body: `# Summary
+
+Callers impersonate employees requesting MFA resets, often referencing real internal terminology harvested from prior LinkedIn reconnaissance.
+
+## Recommendation
+
+Adopt a callback-to-verified-number policy for any MFA reset request, and require manager approval for help-desk-initiated credential changes.
+`,
+    publishedAt: "2026-07-10",
+    tlp: "GREEN",
+    confidence: 78,
+    tags: ["social-engineering", "vishing"],
+    actor: "Scattered Spider",
+  },
+  {
+    title: "Quarterly CISA KEV Exploitation Trends",
+    summary:
+      "Aggregate analysis of CISA KEV additions and observed exploitation velocity. Median time-to-mass-scanning continues to shrink.",
+    body: `# Summary
+
+Aggregate analysis of CISA KEV additions and observed exploitation velocity this quarter. Median time from KEV addition to observed mass scanning fell to 4 days, down from 11 days a year ago.
+
+## Trend
+
+Edge and VPN appliances remain the dominant target class, consistent with prior quarters.
+`,
+    publishedAt: "2026-07-01",
+    tlp: "CLEAR",
+    confidence: 80,
+    tags: ["kev", "trends"],
+    actor: null,
+  },
+] as const;
 
 async function main() {
   const admin = await db.user.findUnique({ where: { email: "admin@pulse.local" } });
@@ -397,24 +671,35 @@ async function main() {
     console.log(`  linked ${linkable.length} indicators to APT29`);
   }
 
-  console.log("\nSeeding report…");
-  await db.report.upsert({
-    where: { slug: slug("Cloud Administrator Credential Harvesting") },
-    update: {},
-    create: {
-      title: "Cloud Administrator Credential Harvesting",
-      slug: slug("Cloud Administrator Credential Harvesting"),
-      summary:
-        "Phishing against cloud administrators followed by OAuth consent abuse. Attribution confidence is deliberately low.",
-      body: REPORT_BODY,
-      published: true,
-      publishedAt: new Date("2026-06-15"),
-      authorId: admin.id,
-      tlp: "GREEN",
-      confidence: 40,
-      tags: ["phishing", "cloud", "oauth"],
-    },
-  });
+  console.log("\nSeeding reports…");
+  for (const r of REPORTS) {
+    const report = await db.report.upsert({
+      where: { slug: slug(r.title) },
+      update: {},
+      create: {
+        title: r.title,
+        slug: slug(r.title),
+        summary: r.summary,
+        body: r.body,
+        published: true,
+        publishedAt: new Date(r.publishedAt),
+        authorId: admin.id,
+        tlp: r.tlp,
+        confidence: r.confidence,
+        tags: [...r.tags],
+      },
+    });
+
+    const actorId = r.actor ? actorIds.get(r.actor) : null;
+    if (actorId) {
+      await db.reportActor.upsert({
+        where: { reportId_actorId: { reportId: report.id, actorId } },
+        update: {},
+        create: { reportId: report.id, actorId, confidence: r.confidence, addedById: admin.id },
+      });
+    }
+  }
+  console.log(`  seeded ${REPORTS.length} reports`);
 
   console.log("\nDone. Sign in and open /actors.");
 }

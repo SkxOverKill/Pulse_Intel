@@ -3,7 +3,7 @@ import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import type { Role } from "@/generated/prisma/enums";
-import { resolveSession } from "@/lib/auth/session";
+import { db } from "@/lib/db";
 
 export type CurrentUser = {
   id: string;
@@ -12,28 +12,34 @@ export type CurrentUser = {
   role: Role;
 };
 
-/// Data Access Layer. `proxy.ts` only checks that a cookie exists — it is
-/// explicitly not allowed to share modules or hit the database. Real verification
-/// happens here, close to the data, on every request that needs it.
-///
-/// `cache()` dedupes this within a single render pass, so calling it in a layout
-/// and three components costs one query.
-export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
-  const session = await resolveSession();
-  if (!session) return null;
+/// This app is shared publicly (portfolio/demo link, no login wall) — every
+/// visitor is treated as this one fixed, real seeded user rather than an
+/// authenticated session. READONLY on purpose: an anonymous visitor can browse
+/// every page, but every mutation (create/edit/delete, enrichment, bulk
+/// actions) still goes through `withAction()`'s role check exactly as before
+/// and is rejected, same as it would be for a real too-low-privilege account.
+/// If this ever needs a real login again, this is the one function to revert
+/// (see the previous version's session-cookie flow in git history).
+const DEMO_EMAIL = "viewer@pulse.local";
 
-  return {
-    id: session.user.id,
-    email: session.user.email,
-    name: session.user.name,
-    role: session.user.role,
-  };
+export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
+  const user = await db.user.findUnique({ where: { email: DEMO_EMAIL } });
+  if (!user || !user.active) return null;
+
+  return { id: user.id, email: user.email, name: user.name, role: user.role };
 });
 
-/// Use in any page/layout that must not render for anonymous visitors.
+/// Kept as a function (not a bare constant) so every call site that used to
+/// gate on "is someone logged in" still reads naturally — it just no longer
+/// redirects to a login page that doesn't exist anymore.
 export async function requireUser(): Promise<CurrentUser> {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) {
+    // Only reachable if `npm run db:seed` was never run on this database.
+    throw new Error(
+      "No demo user found — run `npm run db:seed` to create the seed accounts.",
+    );
+  }
   return user;
 }
 

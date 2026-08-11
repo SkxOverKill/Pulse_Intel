@@ -21,7 +21,7 @@ export function Th({
   return (
     <th
       className={cn(
-        "border-b border-line px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-ink-faint",
+        "sticky top-0 z-[2] border-b border-line bg-surface px-3 py-2 text-left text-[10px] font-medium uppercase tracking-wider text-ink-faint",
         className,
       )}
     >
@@ -54,7 +54,7 @@ export function Tr({
   // Rows are not wrapped in <a> — that would be invalid inside <tbody>. The
   // first cell carries the link; the row highlight is purely visual.
   return (
-    <tr className={cn("group", href && "cursor-pointer hover:bg-surface-2")}>
+    <tr className={cn("group", href && "cursor-pointer hover:bg-white/[0.025]")}>
       {children}
     </tr>
   );

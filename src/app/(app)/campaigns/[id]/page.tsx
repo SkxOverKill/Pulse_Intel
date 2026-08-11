@@ -47,6 +47,13 @@ export default async function CampaignDetailPage(props: {
 
   if (!campaign) notFound();
 
+  const relatedNews = await db.newsItem.findMany({
+    where: { linkedCampaignIds: { has: campaign.id } },
+    orderBy: { publishedAt: "desc" },
+    take: 10,
+    include: { source: { select: { name: true } } },
+  });
+
   const canEdit = user && hasRole(user, "ANALYST");
   const canDelete = user && hasRole(user, "ADMIN");
 
@@ -218,6 +225,37 @@ export default async function CampaignDetailPage(props: {
                   ))}
                 </tbody>
               </Table>
+            )}
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="Related news"
+              hint="Auto-linked by campaign name — updates as new articles come in"
+            />
+            {relatedNews.length === 0 ? (
+              <EmptyState
+                title="No linked coverage yet"
+                description="News mentioning this campaign by name links here automatically as the feeds run."
+              />
+            ) : (
+              <ul className="divide-y divide-line/60">
+                {relatedNews.map((n) => (
+                  <li key={n.id} className="px-4 py-2.5">
+                    <a
+                      href={n.url}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow"
+                      className="block truncate text-sm text-ink hover:text-brand"
+                    >
+                      {n.title}
+                    </a>
+                    <p className="mt-0.5 text-[11px] text-ink-faint">
+                      {n.source?.name ?? "unknown"} · {n.publishedAt.toISOString().slice(0, 10)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
             )}
           </Card>
         </div>

@@ -22,6 +22,8 @@ export const PRIORITY = {
 export const QUEUE_NAMES = {
   enrichment: "pulse-enrichment",
   feeds: "pulse-feeds",
+  hunts: "pulse-hunts",
+  reports: "pulse-reports",
 } as const;
 
 export type EnrichmentJob = {
@@ -39,9 +41,23 @@ export type FeedJob = {
   scheduled?: boolean;
 };
 
+export type HuntJob = {
+  huntId: string;
+  /** Set for scheduled runs, so manual runs can be told apart in the log. */
+  scheduled?: boolean;
+};
+
+export type ReportJob = {
+  scheduledReportId: string;
+  /** Set for scheduled runs, so manual runs can be told apart in the log. */
+  scheduled?: boolean;
+};
+
 const globalForQueues = globalThis as unknown as {
   enrichmentQueue?: Queue<EnrichmentJob>;
   feedQueue?: Queue<FeedJob>;
+  huntQueue?: Queue<HuntJob>;
+  reportQueue?: Queue<ReportJob>;
 };
 
 function makeQueue<T>(name: string): Queue<T> {
@@ -64,9 +80,17 @@ export const enrichmentQueue: Queue<EnrichmentJob> =
 export const feedQueue: Queue<FeedJob> =
   globalForQueues.feedQueue ?? makeQueue<FeedJob>(QUEUE_NAMES.feeds);
 
+export const huntQueue: Queue<HuntJob> =
+  globalForQueues.huntQueue ?? makeQueue<HuntJob>(QUEUE_NAMES.hunts);
+
+export const reportQueue: Queue<ReportJob> =
+  globalForQueues.reportQueue ?? makeQueue<ReportJob>(QUEUE_NAMES.reports);
+
 if (process.env.NODE_ENV !== "production") {
   globalForQueues.enrichmentQueue = enrichmentQueue;
   globalForQueues.feedQueue = feedQueue;
+  globalForQueues.huntQueue = huntQueue;
+  globalForQueues.reportQueue = reportQueue;
 }
 
 export async function enqueueEnrichment(

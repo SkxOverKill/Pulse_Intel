@@ -13,6 +13,7 @@ import {
 import { DetailRow, Muted, PageHeader, SecondaryLink, Tag } from "@/components/ui/page";
 import { Table, Td, Th, Tr } from "@/components/ui/table";
 import { deleteReport, extractIndicators } from "../actions";
+import { ReportExportActions } from "./report-actions";
 
 export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
@@ -41,6 +42,31 @@ export default async function ReportDetailPage(props: {
   const canEdit = user && hasRole(user, "ANALYST");
   const canDelete = user && hasRole(user, "ADMIN");
 
+  const exportData = {
+    title: report.title,
+    summary: report.summary,
+    body: report.body,
+    author: report.author?.name ?? null,
+    published: report.published,
+    createdAt: report.createdAt.toISOString().slice(0, 10),
+    updatedAt: report.updatedAt.toISOString().slice(0, 10),
+    confidence: report.confidence,
+    tlp: report.tlp,
+    sourceUrl: report.sourceUrl,
+    tags: report.tags,
+    indicators: report.indicators.map((i) => ({
+      type: i.indicator.type,
+      value: i.indicator.value,
+      confidence: i.confidence,
+    })),
+    techniques: report.techniques.map((t) => ({
+      attackId: t.technique.attackId,
+      name: t.technique.name,
+      tactic: t.technique.tactics.join(", "),
+    })),
+    actors: report.actors.map((a) => ({ name: a.actor.name, confidence: a.confidence })),
+  };
+
   return (
     <div className="mx-auto max-w-7xl">
       <PageHeader
@@ -48,6 +74,7 @@ export default async function ReportDetailPage(props: {
         description={report.summary ?? undefined}
         action={
           <div className="flex shrink-0 items-center gap-2">
+            <ReportExportActions data={exportData} />
             {canEdit ? (
               <>
                 <form action={extractIndicators}>

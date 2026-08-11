@@ -1,10 +1,11 @@
 # Pulse Intelligence — Handover
 
-Last updated: **2026-07-21**
-Status: **Phases 1–5 of 8 complete.** 30 routes, 96 tests, clean build.
+Last updated: **2026-07-23**
+Status: **Phases 1–7 of 8 complete.** 143 tests, clean build, 38 routes. Now running on
+real PostgreSQL 17 (§4.1 resolved). CVE data backfilled current as of 2026-07-23; see §4.5.
 
 A self-hosted Threat Intelligence Platform — APT tracking, campaigns, IOC management with
-bulk enrichment, MITRE ATT&CK, automated feed ingestion, and search.
+bulk enrichment, MITRE ATT&CK, automated feed ingestion, search, and threat hunting.
 
 - **Plan and rationale:** [`../pulse_intelligence_spec.md`](../pulse_intelligence_spec.md)
 - **Setup and day-to-day commands:** [`README.md`](README.md)
@@ -18,24 +19,20 @@ Two things will bite you, in this order.
 
 ### 1.1 The repo has no remote
 
-`git remote -v` is empty. The code exists only in this folder. Pick one:
+`git remote -v` is empty. The code exists only in this folder until a GitHub remote is added.
 
-**Option A — push to a private GitHub repo (recommended).** Survives disk loss, and you
-can pull from anywhere. Create an empty **private** repo on github.com first, then:
+For the open-source community release, create or choose the public GitHub repository, then:
 
 ```bash
 cd "C:\Users\Sukesh\Downloads\Pulse Development\pulse_intelligence"
 git remote add origin https://github.com/<you>/pulse-intelligence.git
-git push -u origin master
+git push -u origin main
 ```
 
-Then on the RDP box: `git clone https://github.com/<you>/pulse-intelligence.git`
+Then on any new machine: `git clone https://github.com/<you>/pulse-intelligence.git`
 
-(`gh` is not installed on the original machine — `winget install GitHub.cli` if you'd
-rather use `gh repo create --private --source=.` instead of the web UI.)
-
-Make sure the repo is **private**: the code is clean of secrets, but the feed catalogue
-and design notes are your work.
+Do not commit `.env`, real provider keys, database dumps, or private investigation data. The
+application source is safe to publish; deployment state is not.
 
 **Option B — copy the folder.** Copy `pulse_intelligence\` including the `.git` directory
 (700 KB — the whole history comes with it). Do **not** copy `node_modules` or `.next`;
@@ -102,6 +99,27 @@ npm run build
 `verify:enrichment` is the highest-value one: it fires 20 concurrent requests at a 4/min
 quota and asserts exactly 4 are allowed. If that fails, Redis or the limiter is broken.
 
+### 2.4 Sharing a public link (temporary — set up 2026-07-23)
+
+For letting people outside this machine reach it: run **production**, not dev
+(`npm run build && npm run start` — dev mode is fine for local iteration, not for anyone else's
+traffic), then a Cloudflare quick tunnel: `cloudflared.exe tunnel --url http://localhost:3000`
+(binary downloaded to `%TEMP%/installers` this session; grab a fresh copy from
+https://github.com/cloudflare/cloudflared/releases/latest if it's gone). No account, no config,
+no firewall/router changes — it's an outbound-only connection to Cloudflare's edge.
+
+**The URL is ephemeral.** It's tied to the `cloudflared` process; killing it (or a machine
+restart) kills the URL, and a new run gets a new random one — there's no way to keep the same
+link across restarts without a Cloudflare account and a named tunnel. Treat any link handed out
+this way as short-lived.
+
+**Known risk, accepted, not fixed:** the seed admin/analyst/viewer passwords are still the
+defaults printed in this file (§ below) and this repo's own commit history/chat — anyone who
+has seen them can log in as ADMIN through the public link. There is no self-service
+change-password UI yet. If this stops being "show a few friends" and becomes anything longer-
+lived, rotate `SEED_PASSWORD` and manually update the three `User.passwordHash` rows (re-running
+`db:seed` won't touch an existing user's password — see the comment in `prisma/seed.ts`).
+
 ---
 
 ## 3. Where things are
@@ -131,32 +149,36 @@ src/
     queue/queues.ts            BullMQ queues and priorities
   app/(app)/                   authenticated pages
   app/(auth)/                  login
-scripts/                       CLI: attack-sync, install-feeds, verify-enrichment, migrate-offline
+scripts/                       CLI: attack-sync, install-feeds, migrate-offline, cve-catchup,
+                                verify-enrichment/hunting/api/reports
 ```
 
 ---
 
 ## 4. Known issues and traps
 
-### 4.1 The `prisma dev` database is not production-capable
+### 4.1 RESOLVED — now on real PostgreSQL 17
 
-`npm run db:dev` starts a local Postgres with no Docker, which is why it was used. But
-during a full feed ingest it **wedged** — ports stayed open, every connection refused —
-and needed a process kill plus deleting
-`%LOCALAPPDATA%\prisma-dev-nodejs\Data\durable-streams\pulse\server.lock*`.
+As of 2026-07-22 this runs against a native PostgreSQL 17 service on the RDP box
+(`postgresql-x64-17`, port 5432), not the old `prisma dev` toy. Databases `pulse` and
+`pulse_shadow` exist; `.env` points at them. The old wedging / `P1017` / dynamic-upsert
+problems are gone.
 
-It also cannot handle:
-- `prisma migrate dev` → `P1017`
-- introspection → `prepared statement "s3" already exists`
-- dynamically-shaped Prisma `upsert` → `08P01 bind message supplies N parameters`
-- concurrent queries → dropped connections
+Two things still bite, both worked around:
 
-All are worked around in the code, but they are symptoms of one thing: it is a development
-toy doing production-shaped work. **Install real PostgreSQL on the RDP box.** Then:
+- **`prisma migrate dev` hangs in a non-interactive shell.** It waits on a prompt that
+  can't render, and leaves a `node` process holding a Postgres advisory lock, so the next
+  migrate fails `P1002`. Apply existing migrations with **`npx prisma migrate deploy`**
+  instead. If a lock sticks, kill stray `node` processes and retry.
+- **The §4.2 DROP-INDEX drift is still real.** `scripts/migrate-offline.ts` is kept (not
+  deleted) precisely because it guards it — when I added the `HuntAlert` model, the diff
+  again wanted to drop all 13 search indexes. The migration
+  `20260721… _add_hunt_alerts` was hand-authored to keep only the `CREATE TABLE`. Read
+  §4.2 before generating any migration.
 
-- use `npm run db:migrate` and delete `scripts/migrate-offline.ts`
-- the sequential-query comments in `src/app/(app)/page.tsx` and `enrichment/page.tsx` no
-  longer apply — those can go back to `Promise.all`
+Still open (low priority): the sequential-query comments in `src/app/(app)/page.tsx` and
+`enrichment/page.tsx` were written for the toy DB's concurrency limits and can go back to
+`Promise.all` on real Postgres.
 
 ### 4.2 Migrations will try to delete your search indexes
 
@@ -183,6 +205,119 @@ for `DROP INDEX` yourself, every time.
 - **vitest needs the `@/` alias** in `vitest.config.ts`. Type-only imports get erased and
   hide a missing alias until the first runtime import.
 - Browser screenshots time out in this environment; verify UI via computed styles / DOM.
+
+### 4.5 NVD needs an API key or CVE data quietly goes stale
+
+The hourly "NVD Recent CVEs" feed (`src/lib/feeds/run.ts`, `nvd-recent` handler) only queries
+a rolling **24h `lastModStartDate` window** — correct for staying current, useless for
+catching up. Without `NVD_API_KEY` set, NVD caps requests at 5/rolling-30s and intermittently
+403s keyless traffic; the feed can report `lastStatus: ok` while genuinely making no progress,
+which is how the CVE table drifted to being ~7 weeks stale before anyone noticed.
+
+Fixed 2026-07-23: `NVD_API_KEY` is now in `.env` (get one free, instantly, at
+https://nvd.nist.gov/developers/request-an-api-key), sent via the `apiKey` header
+(`nvdHeaders()` in `run.ts`). **`npm run cve:catchup [-- --days N]`** is a one-time backfill —
+unlike the hourly job, it pages through everything NVD *published* in the last N days (default
+30), so a stale DB catches up in one run instead of trickling in 24 hours at a time. Ran once
+already: pulled 9,697 CVEs from the last 30 days. Re-run it (with a larger `--days`) any time
+the data looks stale again; the hourly job alone is only good at staying current once it *is*
+current.
+
+### 4.6 Vulnerability retention — strict 90-day window, including KEV
+
+The NVD feed pulls in the full public CVE stream, which grows unbounded with nothing to prune
+it. `pruneOldVulnerabilities()` (`src/lib/feeds/run.ts`) now runs automatically as part of every
+hourly `nvd-recent` job: deletes every vulnerability whose `publishedAt` is older than
+`VULN_RETENTION_DAYS` (90 — "last 2-3 months," a product decision, not a technical constraint) —
+**including CISA KEV entries**, and including rows with no `publishedAt` at all (treated as
+unknown-age, pruned rather than kept forever).
+
+This was **not** the first cut. The first version exempted KEV rows on the reasoning that
+"actively exploited" stays relevant regardless of age (Log4Shell is still on CISA's list).
+That's true, but the product call landed the other way — a self-hosted single-tenant instance
+would rather see a short, current list than carry `CVE-2021-44228` forever, and the default
+EPSS-first sort meant KEV rows dominated page 1 regardless of the retention window, which read
+as "still showing 2021-2024 data" even after pruning. A second attempt fell back to
+`kevDateAdded` for undated KEV rows (when CISA flagged it, not when NVD published it) — that
+let `CVE-2008-4250` stay on a "last 3 months" list because it was *re-flagged* recently, which
+is exactly the stale-looking noise this was supposed to remove. Landed on: judge age by
+`publishedAt` only, no exemptions, no fallback. If a KEV exemption is wanted back, gate the
+`deleteMany` on `knownExploited: false` — but expect the "page 1 still looks old" complaint to
+return with it, because the EPSS-first sort will keep surfacing whatever KEV rows survive.
+
+Manual/immediate cleanup: `npm run vuln:prune [-- --days N]`. As of 2026-07-23: 10,608 CVEs
+(down from a peak of 12,345), oldest `publishedAt` in the table is ~90 days out, 15 CISA KEV
+entries remain (all recently published, not just recently flagged).
+
+### 4.7 `<body>` needs `suppressHydrationWarning`
+
+Browser extensions (Grammarly, password managers) inject `data-*` attributes onto `<body>`
+before React hydrates, which React reports as a hydration mismatch — a false positive; the
+extension modified the DOM, the app didn't do anything wrong. `suppressHydrationWarning` on the
+root layout's `<body>` (`src/app/layout.tsx`) is the standard, documented fix. Don't add it
+anywhere deeper in the tree — it silences real mismatches too, and `<body>` is the only element
+extensions commonly touch.
+
+### 4.8 Vulnerabilities page sorts newest-first; campaigns auto-link to news like actors do
+
+`/vulnerabilities` now orders by `publishedAt desc` first, EPSS/CVSS as the tiebreaker (was the
+reverse — see §4.6 for why that read as stale). The dashboard's separate "Highest-risk exploited
+CVEs" widget is untouched; it's deliberately EPSS-first and correctly labeled as such.
+
+`NewsItem.linkedCampaignIds` (new field, mirrors `linkedActorIds`/`linkedCveIds`) is populated by
+`linkNewsItem()` in `src/lib/feeds/run.ts`, now exported so `scripts/relink-news.ts` can also
+call it — that script re-scans **every** existing news item against the current actor/campaign
+roster, because a campaign added today never retroactively links to an article ingested
+yesterday otherwise (`ingestNews` only links at ingest time). Run `npm run news:relink` after
+adding campaigns or actors to the seed.
+
+**Matching is exact-name, word-boundary — same mechanism as actor linking, same limitation.**
+"Scattered Spider" appears verbatim in real articles and matches fine; a constructed title like
+"MGM Resorts & Caesars Entertainment Ransomware Attacks" almost never will, because no journalist
+types the analyst-style campaign name verbatim. Actor linking works well in practice for this
+reason; campaign linking will mostly stay empty until real coverage happens to phrase it that
+way. This was a known, accepted tradeoff, not a bug — a fuzzy/keyword matcher would need a
+`campaignAliases`-style field (mirroring `ActorAlias`) to do meaningfully better, which wasn't
+built. If this starts to matter, that's the extension point.
+
+`prisma/seed-demo.ts` grew from 4 to 15 campaigns — real, publicly-documented incidents
+(3CX, JumpCloud, MGM/Caesars, Snowflake, UK retail DragonForce attacks, WinRAR CVE-2023-38831,
+Industroyer2, KV Botnet, Black Basta, US state government zero-days, Teams device-code phishing),
+each attributed to one of the existing 8 actors. `npm run db:seed:demo` is idempotent
+(`upsert` on name) — safe to re-run after adding more.
+
+### 4.9 SOC dashboard — real charts, hand-rolled SVG, no chart library
+
+The `/` dashboard (`src/app/(app)/page.tsx`) grew from stat tiles + two lists into a proper
+SOC-style overview: two 30-day trend lines (new indicators/day, new CVEs published/day —
+computed directly from `Indicator.createdAt` / `Vulnerability.publishedAt`, **no separate
+snapshot table**, so history exists from day one instead of only after a new table starts
+accumulating rows) plus four distribution bar charts (indicator severity, indicator types,
+vulnerability CVSS band, ATT&CK tactic coverage — the last one reuses `getMatrix()` from
+`src/lib/attack/matrix.ts` rather than a new query).
+
+- **`src/components/ui/charts.tsx`** (`HorizontalBarChart`) is deliberately **not** `"use
+  client"` — it has no interactivity, so it stays server-rendered, which is the only reason
+  the dashboard can pass it a plain `formatValue` function prop from a Server Component.
+- **`src/components/ui/trend-area.tsx`** (`TrendArea`) *is* `"use client"` (hover state,
+  `useId` for the gradient). It used to live in the same file as the bar chart — that broke
+  production with "Functions cannot be passed directly to Client Components," because once a
+  file is `"use client"`, every component it exports becomes one, and passing a function prop
+  from the server page to *any* of them fails serialization, not just the one that needs it.
+  If you add a third chart type, decide up front whether it needs client interactivity and
+  put it in the right file — don't default to bolting it onto whichever file is closest.
+- **Categorical palette** (`--color-chart-1..6` in `globals.css`) is not eyeballed — run
+  through the project's dataviz skill validator against this app's actual dark surface
+  (`#0d1626`), not the skill's generic default surface. Severity/CVSS-band bars reuse the
+  existing `--color-sev-*` tokens instead of the categorical palette — a status color must
+  never be reassigned as "series 4" (dataviz skill's rule, and it'd also be confusing: a
+  categorical bar happening to render sev-critical red for something that isn't critical).
+- Every dashboard query runs through one `Promise.all` — the old sequential-query pattern
+  (see §4.1) was for the fragile `prisma dev` toy DB; on real Postgres, ~14 concurrent queries
+  is fine and the page would otherwise be visibly slower for no reason.
+- **Not built:** the graph pivot view (actor ↔ campaign ↔ IOC ↔ technique) the spec mentions
+  as optional. Scoped out of this pass to keep it shippable in one sitting; still open if
+  wanted later — see spec §7's undecided Cytoscape/D3/skip choice.
 
 ---
 
@@ -222,35 +357,83 @@ Reproducible from scratch with the §2.2 commands.
 | | |
 |---|---|
 | Threat actors | 8 real APTs, 30 cross-vendor aliases |
+| Campaigns | 15 real, publicly-documented campaigns (2017-2025), attributed to the 8 actors |
 | ATT&CK | 943 techniques, 41 tactics (v19.1), 634 MITRE group mappings |
-| Vulnerabilities | 2,148 CVEs — 1,651 CISA KEV, 577 EPSS-scored |
-| Indicators | ~2,100 from abuse.ch, OTX, and the demo seed |
-| News | 175 articles, auto-linked to actors and CVEs |
+| Vulnerabilities | 10,608 CVEs — strict 90-day retention, no exemptions (§4.6), 15 CISA KEV, newest-first |
+| Indicators | ~2,000 from abuse.ch, OTX, and the demo seed |
+| News | 194 articles, auto-linked to actors, CVEs, and campaigns (exact-name match) |
 | Feeds | 18 sources, hourly |
 
 ---
 
 ## 7. What's next
 
-**Phase 6 — Threat hunting.** Structured query builder over IOCs/actors/techniques, saved
-and scheduled hunts, alerting on new matches, graph pivot view. The `HuntQuery` model
-already exists and is unused.
+**Phase 6 — Threat hunting.** ✅ *done 2026-07-22.* Structured query builder over the
+indicator set (`/hunting`), saved + scheduled hunts, and alerting on new matches.
 
-**Phase 7 — Export and API.** STIX 2.1 / MISP / CSV / Snort export, public REST API with
-the existing `ApiKey` model, scheduled reports. ATT&CK Navigator export already works
-(`/api/attack/navigator`) and is a good template for the auth pattern.
+- **Engine** is `src/lib/hunting/`: `schema.ts` (field catalogue + AST validation, kept
+  dependency-free so the client builder can import it), `compile.ts` (AST → Prisma
+  `where`), `run.ts` (preview + the scheduled runner). 20 unit tests in `query.test.ts`.
+- **Whitelisted indicators are never matched** — the compiler forces `whitelisted: false`
+  regardless of the query, and `whitelisted` is deliberately not a huntable field (design
+  rule 3). A test and `npm run verify:hunting` both assert this.
+- **"New match" alerting** compares against `lastRunAt` and only fires on indicators
+  created since — a scheduled hunt must not re-alert on the same rows every hour. New
+  `HuntAlert` model records each hit; the worker has a `pulse-hunts` queue + per-hunt cron
+  scheduler mirroring feeds.
+- **`npm run verify:hunting`** exercises the whole path against the real DB (compile →
+  count → run → alert → no-re-alert) and cleans up after itself.
+- Deliberately skipped for now: the graph pivot view (spec §4.7 calls it optional; §7
+  leaves the library choice open). Pivot navigation already exists via entity detail pages.
+
+**Phase 7 — Export and API.** ✅ *done 2026-07-22.*
+
+- ✅ **IOC export done.** `src/lib/export/formats.ts` — CSV, STIX 2.1 bundle, MISP event
+  JSON, Snort/Suricata rules. Pure/testable (15 tests in `formats.test.ts`). Served by
+  `src/app/(app)/indicators/export/route.ts`, driven by the Export menu on `/indicators`;
+  the download carries the current q/type/severity filters. **Whitelisted indicators are
+  never exported** — the route forces `whitelisted: false` and there is no param to ask for
+  them (design rule 3). Every export writes an `EXPORT` audit row.
+  - STIX ids are deterministic (hash of type+normalizedValue) so re-exporting is idempotent.
+    Types with no clean STIX observable (CVE, USER_AGENT, BTC_ADDRESS) are omitted from the
+    bundle, not faked. Snort only emits rules for network observables and lists the rest in
+    a trailing comment.
+- ✅ **Public REST API done.** `src/lib/auth/apikey.ts` (generate/hash a key — same
+  hash-only-storage pattern as session tokens) + `src/lib/api/auth.ts`
+  (`requireApiKey(request, scope?)`, the per-route gate — `proxy.ts` deliberately excludes
+  `/api`, so every route authenticates itself, same as `/api/attack/navigator` already did).
+  Endpoints: `GET /api/v1/indicators` (+`/:id`, +`?format=csv|stix|misp|snort` reusing the
+  export formatters) and `GET /api/v1/actors` (+`/:id`, techniques/malware/tools each with
+  their own confidence — rule 1 again). Key management UI at `/settings` (ADMIN-only,
+  raw key shown exactly once at creation, never stored). `npm run verify:api` exercises
+  auth failure modes, scope enforcement, and — the one that matters — confirms a
+  whitelisted indicator 404s on the public API exactly like a nonexistent one, in both
+  list totals and the detail route.
+- ✅ **Scheduled reports done.** `src/lib/reports/generate.ts` builds a markdown summary
+  of everything that changed in a window (new indicators by severity, new actors/campaigns,
+  CISA KEV additions, hunt alerts, feed health) — same signals as the dashboard, scoped to a
+  date range instead of "right now". `src/lib/reports/run.ts` files it as a normal `Report`
+  row with **no `authorId`**, which is how the UI tells a generated report from an
+  analyst-authored one without a fake "system" user account. New `ScheduledReport` model +
+  `pulse-reports` queue + worker cron scheduler, mirroring hunts exactly. UI at
+  `/reports/scheduled` (linked from the Reports page header). `npm run verify:reports`
+  checks the generator's counts against the real DB and that back-to-back runs don't
+  slug-collide or duplicate.
+
+**Phase 7 is complete.**
 
 **Phase 8 — Hardening.** Indicator decay (the `decayHalfLifeDays` field is set per source
 but nothing applies it yet), `Indicator` partitioning if it passes ~10M rows,
 backup/restore, rate limits on the public API, security review.
 
-**Do first, before Phase 6:** move to real PostgreSQL (§4.1). Building hunting and alerting
-on a database that falls over under an hourly ingest is a bad trade.
-
 **Also outstanding:**
 - Settings UI for provider API keys — the `CREDENTIAL_ENC_KEY` env var and the encrypted
   storage it implies are declared but unused; keys currently come from `.env` only.
-- `/malware`, `/hunting`, `/settings`, `/audit` are still "Soon" in the sidebar.
+- `/malware`, `/settings`, `/audit` are still "Soon" in the sidebar. (`/hunting` is now
+  live.)
+- The RDP box has no `winget` (Win10 LTSC). Node 24 / PostgreSQL 17 / Memurai were
+  installed from direct MSI/EXE downloads. `node`/`npm`/`psql` are not on the bash PATH by
+  default — prepend `/c/Program Files/nodejs` and `/c/Program Files/PostgreSQL/17/bin`.
 - `recomputeIndicatorConfidence` overwrites analyst-set confidence with the max provider
   score. Correct for feed-ingested IOCs, arguably wrong for a hand-tuned one — revisit if
   it annoys you.

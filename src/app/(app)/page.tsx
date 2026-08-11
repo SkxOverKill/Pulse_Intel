@@ -12,25 +12,13 @@ import {
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
 import { Card, CardHeader, EmptyState } from "@/components/ui/primitives";
+import { HorizontalBarChart, type BarDatum } from "@/components/ui/charts";
+import { TrendArea, type TrendPoint } from "@/components/ui/trend-area";
+import { getMatrix } from "@/lib/attack/matrix";
 
 export const metadata = { title: "Dashboard · Pulse Intelligence" };
 
-/**
- * Counts are fetched sequentially rather than with Promise.all: the local dev
- * Postgres drops connections under concurrent load (see src/lib/db.ts).
- */
-async function getCounts() {
-  return {
-    actors: await db.threatActor.count(),
-    campaigns: await db.campaign.count({ where: { status: "ACTIVE" } }),
-    indicators: await db.indicator.count({ where: { whitelisted: false } }),
-    kev: await db.vulnerability.count({ where: { knownExploited: true } }),
-    techniques: await db.technique.count({ where: { deprecated: false } }),
-    reports: await db.report.count(),
-    sources: await db.source.count({ where: { enabled: true } }),
-    news: await db.newsItem.count(),
-  };
-}
+const TRENDDAYS = 30;
 
 const TILES = [
   { key: "actors", label: "Threat actors", icon: Users, href: "/actors" },
@@ -43,35 +31,165 @@ const TILES = [
   { key: "sources", label: "Enabled feeds", icon: Rss, href: "/feeds" },
 ] as const;
 
+const SEVERITY_COLOR: Record<string, string> = {
+  CRITICAL: "var(--color-sev-critical)",
+  HIGH: "var(--color-sev-high)",
+  MEDIUM: "var(--color-sev-medium)",
+  LOW: "var(--color-sev-low)",
+  INFO: "var(--color-sev-info)",
+};
+
+const CVSS_BAND_COLOR: Record<string, string> = {
+  Critical: "var(--color-sev-critical)",
+  High: "var(--color-sev-high)",
+  Medium: "var(--color-sev-medium)",
+  Low: "var(--color-sev-low)",
+  Unscored: "var(--color-sev-info)",
+};
+
+/** Fills in zero-count days so the trend line doesn't skip gaps in the data. */
+function fillDays(
+  rows: { day: Date; count: bigint | number }[],
+  days: number,
+): TrendPoint[] {
+  const counts = new Map(
+    rows.map((r) => [r.day.toISOString().slice(0, 10), Number(r.count)]),
+  );
+  const points: TrendPoint[] = [];
+  const start = new Date();
+  start.setUTCHours(0, 0, 0, 0);
+  start.setUTCDate(start.getUTCDate() - (days - 1));
+
+  for (let i = 0; i < days; i++) {
+    const d = new Date(start);
+    d.setUTCDate(d.getUTCDate() + i);
+    const key = d.toISOString().slice(0, 10);
+    points.push({ date: key.slice(5), value: counts.get(key) ?? 0 });
+  }
+  return points;
+}
+
 export default async function DashboardPage() {
   const user = await requireUser();
-  const counts = await getCounts();
+  const trendSince = new Date();
+  trendSince.setUTCDate(trendSince.getUTCDate() - TRENDDAYS);
 
-  const recentNews = await db.newsItem.findMany({
-    orderBy: [{ relevanceScore: "desc" }, { publishedAt: "desc" }],
-    take: 6,
-    include: { source: { select: { name: true } } },
-  });
-
-  const topKev = await db.vulnerability.findMany({
-    where: { knownExploited: true },
-    // `nulls: "last"` is essential: Postgres defaults to NULLS FIRST on DESC,
-    // so unscored CVEs would sort above every scored one and the panel would
-    // claim an EPSS ranking while showing unranked rows.
-    orderBy: [
-      { epssScore: { sort: "desc", nulls: "last" } },
-      { cvssV3: { sort: "desc", nulls: "last" } },
-    ],
-    take: 6,
-  });
-
-  const staleFeeds = await db.source.findMany({
-    where: { enabled: true, OR: [{ lastStatus: "error" }, { lastRunAt: null }] },
-    select: { id: true, name: true, lastStatus: true, lastError: true },
-    take: 5,
-  });
+  const [
+    counts,
+    recentNews,
+    topKev,
+    staleFeeds,
+    newIndicatorsByDay,
+    newCveByDay,
+    severityGroups,
+    typeGroups,
+    cvssCritical,
+    cvssHigh,
+    cvssMedium,
+    cvssLow,
+    cvssUnscored,
+    matrix,
+  ] = await Promise.all([
+    (async () => ({
+      actors: await db.threatActor.count(),
+      campaigns: await db.campaign.count({ where: { status: "ACTIVE" } }),
+      indicators: await db.indicator.count({ where: { whitelisted: false } }),
+      kev: await db.vulnerability.count({ where: { knownExploited: true } }),
+      techniques: await db.technique.count({ where: { deprecated: false } }),
+      reports: await db.report.count(),
+      sources: await db.source.count({ where: { enabled: true } }),
+      news: await db.newsItem.count(),
+    }))(),
+    db.newsItem.findMany({
+      orderBy: [{ relevanceScore: "desc" }, { publishedAt: "desc" }],
+      take: 6,
+      include: { source: { select: { name: true } } },
+    }),
+    db.vulnerability.findMany({
+      where: { knownExploited: true },
+      orderBy: [
+        { epssScore: { sort: "desc", nulls: "last" } },
+        { cvssV3: { sort: "desc", nulls: "last" } },
+      ],
+      take: 6,
+    }),
+    db.source.findMany({
+      where: { enabled: true, OR: [{ lastStatus: "error" }, { lastRunAt: null }] },
+      select: { id: true, name: true, lastStatus: true, lastError: true },
+      take: 5,
+    }),
+    db.$queryRaw<{ day: Date; count: bigint }[]>`
+      SELECT date_trunc('day', "createdAt") AS day, count(*)::bigint AS count
+      FROM "Indicator"
+      WHERE "createdAt" >= ${trendSince}
+      GROUP BY 1 ORDER BY 1
+    `,
+    db.$queryRaw<{ day: Date; count: bigint }[]>`
+      SELECT date_trunc('day', "publishedAt") AS day, count(*)::bigint AS count
+      FROM "Vulnerability"
+      WHERE "publishedAt" >= ${trendSince}
+      GROUP BY 1 ORDER BY 1
+    `,
+    db.indicator.groupBy({
+      by: ["severity"],
+      where: { whitelisted: false },
+      _count: { _all: true },
+    }),
+    db.indicator.groupBy({
+      by: ["type"],
+      where: { whitelisted: false },
+      _count: { _all: true },
+    }),
+    db.vulnerability.count({ where: { cvssV3: { gte: 9 } } }),
+    db.vulnerability.count({ where: { cvssV3: { gte: 7, lt: 9 } } }),
+    db.vulnerability.count({ where: { cvssV3: { gte: 4, lt: 7 } } }),
+    db.vulnerability.count({ where: { cvssV3: { lt: 4 } } }),
+    db.vulnerability.count({ where: { cvssV3: null } }),
+    getMatrix("ENTERPRISE"),
+  ]);
 
   const empty = counts.actors === 0 && counts.indicators === 0;
+
+  const severityBars: BarDatum[] = (["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"] as const)
+    .map((sev) => ({
+      label: sev,
+      value: severityGroups.find((g) => g.severity === sev)?._count._all ?? 0,
+      color: SEVERITY_COLOR[sev],
+      href: `/indicators?severity=${sev}`,
+    }))
+    .filter((b) => b.value > 0);
+
+  const cvssBars: BarDatum[] = [
+    { label: "Critical (9-10)", value: cvssCritical, color: CVSS_BAND_COLOR.Critical },
+    { label: "High (7-9)", value: cvssHigh, color: CVSS_BAND_COLOR.High },
+    { label: "Medium (4-7)", value: cvssMedium, color: CVSS_BAND_COLOR.Medium },
+    { label: "Low (0-4)", value: cvssLow, color: CVSS_BAND_COLOR.Low },
+    { label: "Unscored", value: cvssUnscored, color: CVSS_BAND_COLOR.Unscored },
+  ].filter((b) => b.value > 0);
+
+  const sortedTypes = [...typeGroups].sort((a, b) => b._count._all - a._count._all);
+  const topTypes = sortedTypes.slice(0, 7);
+  const otherTypesTotal = sortedTypes.slice(7).reduce((sum, t) => sum + t._count._all, 0);
+  const typeBars: BarDatum[] = [
+    ...topTypes.map((t) => ({
+      label: t.type,
+      value: t._count._all,
+      href: `/indicators?type=${t.type}`,
+    })),
+    ...(otherTypesTotal > 0 ? [{ label: "Other", value: otherTypesTotal }] : []),
+  ];
+
+  const tacticBars: BarDatum[] = matrix.columns
+    .filter((c) => c.techniques.length > 0)
+    .map((c) => {
+      const covered = c.techniques.filter((t) => t.actorCount > 0).length;
+      return {
+        label: c.name,
+        value: Math.round((covered / c.techniques.length) * 100),
+        color: "var(--color-chart-1)",
+      };
+    })
+    .sort((a, b) => b.value - a.value);
 
   return (
     <div className="mx-auto max-w-7xl space-y-5">
@@ -125,6 +243,45 @@ export default async function DashboardPage() {
           </ul>
         </Card>
       ) : null}
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader
+            title="New indicators"
+            hint={`Last ${TRENDDAYS} days, by day ingested`}
+          />
+          <TrendArea data={fillDays(newIndicatorsByDay, TRENDDAYS)} color="var(--color-chart-1)" />
+        </Card>
+        <Card>
+          <CardHeader
+            title="New CVEs published"
+            hint={`Last ${TRENDDAYS} days, by NVD publish date`}
+          />
+          <TrendArea data={fillDays(newCveByDay, TRENDDAYS)} color="var(--color-chart-2)" />
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader title="Indicator severity" hint="Non-whitelisted, current" />
+          <HorizontalBarChart data={severityBars} />
+        </Card>
+        <Card>
+          <CardHeader title="Indicator types" hint="Top 7, rest folded into Other" />
+          <HorizontalBarChart data={typeBars} />
+        </Card>
+        <Card>
+          <CardHeader title="Vulnerability severity" hint="By CVSS v3 band" />
+          <HorizontalBarChart data={cvssBars} />
+        </Card>
+        <Card>
+          <CardHeader
+            title="ATT&CK coverage by tactic"
+            hint={`${matrix.coveredTechniques} of ${matrix.totalTechniques} enterprise techniques mapped to a tracked actor`}
+          />
+          <HorizontalBarChart data={tacticBars} formatValue={(v) => `${v}%`} />
+        </Card>
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

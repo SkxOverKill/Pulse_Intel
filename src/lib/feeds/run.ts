@@ -32,6 +32,17 @@ export type FeedRunResult = {
 const USER_AGENT =
   "PulseIntelligence/0.1 (self-hosted threat intelligence platform)";
 
+/**
+ * NVD API 2.0 accepts a bare `apiKey` header. Without one, requests are capped
+ * at 5/rolling-30s and NIST's service intermittently 403s keyless traffic —
+ * with one, 50/rolling-30s. Optional: the feed still runs without a key, just
+ * closer to the edge of getting throttled.
+ */
+function nvdHeaders(): Record<string, string> {
+  const key = process.env.NVD_API_KEY;
+  return key ? { apiKey: key } : {};
+}
+
 async function fetchFeed(url: string, init: RequestInit = {}): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 60_000);
@@ -104,14 +115,52 @@ async function upsertVulnerabilities(rows: ParsedVulnerability[]): Promise<numbe
   return count;
 }
 
+/** Default retention window: "last 2-3 months" per the product decision, in days. */
+export const VULN_RETENTION_DAYS = 90;
+
+/**
+ * Deletes every vulnerability older than the retention window — strict,
+ * including CISA KEV entries. (An earlier version exempted KEV rows on the
+ * reasoning that "actively exploited" stays relevant regardless of age; the
+ * product call landed the other way — a self-hosted single-tenant instance
+ * would rather see a short, current list than carry Log4Shell forever. If
+ * that changes back, gate this on `knownExploited: false`.)
+ *
+ * Age is judged strictly by `publishedAt` — the CVE's own vintage, which is
+ * what actually shows up in the UI. `kevDateAdded` (when CISA flagged it) was
+ * tried as a fallback for rows with no NVD publish date, but that let a CVE
+ * from 2008 stay on a "last 3 months" list just because CISA re-flagged it
+ * recently — exactly the stale-looking noise this is meant to remove. A row
+ * with no `publishedAt` is now treated as unknown-age and pruned too, rather
+ * than kept indefinitely for lack of a date to judge it by.
+ */
+export async function pruneOldVulnerabilities(
+  retentionDays: number = VULN_RETENTION_DAYS,
+): Promise<number> {
+  const cutoff = new Date(Date.now() - retentionDays * 86_400_000);
+  const result = await db.vulnerability.deleteMany({
+    where: {
+      OR: [{ publishedAt: { lt: cutoff } }, { publishedAt: null }],
+    },
+  });
+  return result.count;
+}
+
 /**
  * Auto-links news to tracked actors and CVEs by scanning title + summary.
  *
  * Actor matching uses names *and* aliases, since a vendor blog will say
- * "Midnight Blizzard" where we track "APT29". Word-boundary matched to avoid
- * "APT29" firing on "APT2".
+ * "Midnight Blizzard" where we track "APT29". Campaign matching is exact-name
+ * only — campaigns don't have an alias table, and campaign names ("SolarWinds
+ * Supply Chain Compromise") are distinctive enough not to need one. Both are
+ * word-boundary matched to avoid "APT29" firing on "APT2".
+ *
+ * Exported (not just used by `ingestNews`) so `scripts/relink-news.ts` can
+ * recompute links for already-ingested news after new actors/campaigns are
+ * added — otherwise a campaign added today would never link to an article
+ * ingested yesterday, even though the article names it.
  */
-async function linkNewsItem(title: string, summary: string | null) {
+export async function linkNewsItem(title: string, summary: string | null) {
   const haystack = `${title} ${summary ?? ""}`;
 
   const cveIds = [
@@ -120,22 +169,29 @@ async function linkNewsItem(title: string, summary: string | null) {
     ),
   ];
 
-  const actors = await db.threatActor.findMany({
-    select: { id: true, name: true, aliases: { select: { alias: true } } },
-  });
+  const [actors, campaigns] = await Promise.all([
+    db.threatActor.findMany({
+      select: { id: true, name: true, aliases: { select: { alias: true } } },
+    }),
+    db.campaign.findMany({ select: { id: true, name: true } }),
+  ]);
+
+  const matchesAny = (names: string[]) =>
+    names.some((n) => {
+      if (n.length < 4) return false; // too short to match safely
+      const escaped = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp(`\\b${escaped}\\b`, "i").test(haystack);
+    });
 
   const linkedActorIds = actors
-    .filter((a) => {
-      const names = [a.name, ...a.aliases.map((x) => x.alias)];
-      return names.some((n) => {
-        if (n.length < 4) return false; // too short to match safely
-        const escaped = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        return new RegExp(`\\b${escaped}\\b`, "i").test(haystack);
-      });
-    })
+    .filter((a) => matchesAny([a.name, ...a.aliases.map((x) => x.alias)]))
     .map((a) => a.id);
 
-  return { cveIds, linkedActorIds };
+  const linkedCampaignIds = campaigns
+    .filter((c) => matchesAny([c.name]))
+    .map((c) => c.id);
+
+  return { cveIds, linkedActorIds, linkedCampaignIds };
 }
 
 async function ingestNews(sourceId: string, xml: string): Promise<{ created: number; duped: number }> {
@@ -150,13 +206,16 @@ async function ingestNews(sourceId: string, xml: string): Promise<{ created: num
       continue;
     }
 
-    const { cveIds, linkedActorIds } = await linkNewsItem(item.title, item.summary);
+    const { cveIds, linkedActorIds, linkedCampaignIds } = await linkNewsItem(
+      item.title,
+      item.summary,
+    );
 
-    // Relevance drives dashboard ordering: named actors and CVEs matter more
-    // than general coverage.
+    // Relevance drives dashboard ordering: named actors, campaigns and CVEs
+    // matter more than general coverage.
     const relevanceScore = Math.min(
       100,
-      linkedActorIds.length * 25 + cveIds.length * 15,
+      linkedActorIds.length * 25 + linkedCampaignIds.length * 20 + cveIds.length * 15,
     );
 
     await db.newsItem.create({
@@ -169,6 +228,7 @@ async function ingestNews(sourceId: string, xml: string): Promise<{ created: num
         relevanceScore,
         linkedActorIds,
         linkedCveIds: cveIds,
+        linkedCampaignIds,
         tags: cveIds.length ? ["cve"] : [],
       },
     });
@@ -230,11 +290,21 @@ async function runHandler(
       u.searchParams.set("lastModEndDate", new Date().toISOString());
       u.searchParams.set("resultsPerPage", "500");
 
-      const res = await fetchFeed(u.toString());
+      const res = await fetchFeed(u.toString(), { headers: nvdHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const rows = parseNvd(await res.json());
       const n = await upsertVulnerabilities(rows);
-      return { ingested: n, duped: 0, message: `${n} CVEs updated` };
+
+      // Piggybacks on the hourly cadence rather than its own schedule — a
+      // cheap, indexed delete that keeps the table from growing unbounded as
+      // this same job pulls in the full public CVE stream hour after hour.
+      const pruned = await pruneOldVulnerabilities();
+
+      return {
+        ingested: n,
+        duped: 0,
+        message: `${n} CVEs updated${pruned > 0 ? `, ${pruned} stale CVEs pruned` : ""}`,
+      };
     }
 
     case "urlhaus": {

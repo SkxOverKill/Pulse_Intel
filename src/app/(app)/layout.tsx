@@ -2,6 +2,8 @@ import { Sidebar } from "@/components/nav/sidebar";
 import { TopBar } from "@/components/nav/topbar";
 import { requireUser } from "@/lib/auth/dal";
 
+export const dynamic = "force-dynamic";
+
 export default async function AppLayout({
   children,
 }: {
