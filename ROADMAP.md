@@ -6,7 +6,7 @@ platform. The roadmap favors practical analyst workflows over broad, generic fea
 ## Phase 8: Hardening
 
 - Add large-table partitioning guidance for high-volume indicator deployments.
-- Expand API examples and client snippets.
+- Expand API examples, client snippets, and SIEM-specific field mapping examples.
 - Add more defensive feed parser tests and fixtures.
 - Continue dependency review and security hardening.
 - Improve backup restore smoke testing in non-production environments.

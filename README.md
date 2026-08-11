@@ -147,6 +147,11 @@ Whitelisted indicators are never returned by public API or export routes.
 Public API responses include `X-RateLimit-*` headers, and exhausted keys receive `429`
 with `Retry-After`.
 
+## Hunting
+
+See [`docs/HUNTING.md`](docs/HUNTING.md) for templates, ATT&CK-aware fields, SIEM query drafts,
+alert semantics, and match exports.
+
 ## Deployment
 
 Production needs two long-running processes:
