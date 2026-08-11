@@ -1,7 +1,9 @@
 import type { IndicatorType } from "@/generated/prisma/enums";
 import type { EnrichmentProvider } from "@/lib/enrichment/types";
 import { abuseIpDbProvider } from "@/lib/enrichment/providers/abuseipdb";
+import { greyNoiseProvider } from "@/lib/enrichment/providers/greynoise";
 import { otxProvider } from "@/lib/enrichment/providers/otx";
+import { shodanProvider } from "@/lib/enrichment/providers/shodan";
 import { stubProvider } from "@/lib/enrichment/providers/stub";
 import { virusTotalProvider } from "@/lib/enrichment/providers/virustotal";
 
@@ -9,12 +11,16 @@ import { virusTotalProvider } from "@/lib/enrichment/providers/virustotal";
  * Provider order matters and is not alphabetical.
  *
  * OTX is effectively unlimited, so it goes first — every indicator it can answer
- * is a VirusTotal request preserved. AbuseIPDB (1,000/day) next. VirusTotal
- * last, because at 4/min and 500/day it is the scarcest resource in the system
- * and should only be spent on indicators the cheaper providers could not cover.
+ * is a VirusTotal request preserved. GreyNoise and Shodan next (both have free
+ * tiers with no key required) — they add infra context before we spend quota.
+ * AbuseIPDB (1,000/day) after. VirusTotal last, because at 4/min and 500/day
+ * it is the scarcest resource in the system and should only be spent on
+ * indicators the cheaper providers could not cover.
  */
 export const PROVIDERS: EnrichmentProvider[] = [
   otxProvider,
+  greyNoiseProvider,
+  shodanProvider,
   abuseIpDbProvider,
   virusTotalProvider,
   stubProvider,
