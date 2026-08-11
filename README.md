@@ -22,6 +22,8 @@ exports, and scheduled intelligence reports from one practical workspace.
 Phases 1-7 of 8 are implemented. Phase 8 is hardening: rate limits on public API routes,
 backup/restore, indicator decay, large-table partitioning, and deeper security review.
 
+See [`HISTORY.md`](HISTORY.md) for the development timeline and public-release cleanup notes.
+
 ## Stack
 
 | Area | Technology |
