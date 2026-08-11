@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Trash2 } from "lucide-react";
+import { FileCode2, Pencil, Trash2 } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser, hasRole } from "@/lib/auth/dal";
 import {
@@ -73,6 +73,14 @@ export default async function CampaignDetailPage(props: {
         description={campaign.description ?? undefined}
         action={
           <div className="flex shrink-0 items-center gap-2">
+            <a
+              href={`/api/sigma/campaign/${campaign.id}`}
+              className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface-2 px-3 py-2 text-sm text-ink-muted transition-colors hover:text-ink"
+              title="Download Sigma detection rules for this campaign"
+            >
+              <FileCode2 className="size-4" />
+              Sigma rules
+            </a>
             {canEdit ? (
               <SecondaryLink href={`/campaigns/${campaign.id}/edit`}>
                 <Pencil className="size-4" />

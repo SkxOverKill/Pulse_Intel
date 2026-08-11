@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Shield } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/primitives";
 import { DetailRow, Muted, PageHeader, Tag } from "@/components/ui/page";
 import { Table, Td, Th, Tr } from "@/components/ui/table";
+import { getCountermeasures, DEFEND_CATEGORY_COLORS } from "@/lib/defend/countermeasures";
 
 export async function generateMetadata(props: {
   params: Promise<{ attackId: string }>;
@@ -60,6 +61,8 @@ export default async function TechniquePage(props: {
     where: { domain: technique.domain, shortname: { in: technique.tactics } },
     orderBy: { order: "asc" },
   });
+
+  const countermeasures = getCountermeasures(technique.attackId);
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -118,6 +121,45 @@ export default async function TechniquePage(props: {
               </p>
             )}
           </Card>
+
+          {countermeasures.length > 0 ? (
+            <Card>
+              <CardHeader
+                title="D3FEND countermeasures"
+                hint="MITRE D3FEND defensive techniques mapped to this attack"
+                action={
+                  <a
+                    href={`https://d3fend.mitre.org/offensive-technique/attack:${technique.attackId}/`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] text-ink-muted hover:text-brand"
+                  >
+                    D3FEND <ExternalLink className="size-3" />
+                  </a>
+                }
+              />
+              <div className="divide-y divide-line/60">
+                {countermeasures.map((cm) => {
+                  const color = DEFEND_CATEGORY_COLORS[cm.category] ?? "bg-surface-2 text-ink-muted border-line";
+                  return (
+                    <div key={cm.d3fend_id} className="flex items-start gap-3 px-4 py-3">
+                      <Shield className="mt-0.5 size-4 shrink-0 text-ink-muted" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-medium text-ink">{cm.label}</span>
+                          <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium ${color}`}>
+                            {cm.category}
+                          </span>
+                          <span className="font-mono text-[10px] text-ink-faint">{cm.d3fend_id}</span>
+                        </div>
+                        <p className="mt-0.5 text-xs text-ink-muted">{cm.definition}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          ) : null}
 
           <Card>
             <CardHeader
