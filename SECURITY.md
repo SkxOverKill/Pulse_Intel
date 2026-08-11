@@ -4,8 +4,9 @@
 
 Please do not open a public GitHub issue for vulnerabilities.
 
-Report security issues privately by emailing the maintainer, or by using GitHub private
-vulnerability reporting if it is enabled on the repository.
+Report security issues through GitHub private vulnerability reporting:
+
+https://github.com/SkxOverKill/Pulse_Intel/security/advisories/new
 
 Include:
 

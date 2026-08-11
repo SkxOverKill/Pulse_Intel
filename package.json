@@ -1,8 +1,30 @@
 {
   "name": "pulse_intelligence",
   "version": "0.1.0",
+  "description": "Open-source, self-hosted threat intelligence platform for analyst workflows, IOC enrichment, ATT&CK mapping, threat hunting, feeds, exports, and reporting.",
   "private": false,
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SkxOverKill/Pulse_Intel.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SkxOverKill/Pulse_Intel/issues"
+  },
+  "homepage": "https://github.com/SkxOverKill/Pulse_Intel#readme",
+  "keywords": [
+    "threat-intelligence",
+    "cti",
+    "ioc",
+    "mitre-attack",
+    "threat-hunting",
+    "security",
+    "soc",
+    "osint"
+  ],
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
