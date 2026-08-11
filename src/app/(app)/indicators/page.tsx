@@ -12,6 +12,7 @@ import {
 import { Pagination, Table, Td, Th, Tr } from "@/components/ui/table";
 import { Muted, PageHeader, Tag } from "@/components/ui/page";
 import { activeIndicatorWhere } from "@/lib/ioc/decay";
+import { FreshnessBar } from "@/components/ui/freshness";
 import { IndicatorFilters } from "./filters";
 import { ExportMenu } from "./export-menu";
 
@@ -111,7 +112,7 @@ export default async function IndicatorsPage(props: {
                   <Th>Source</Th>
                   <Th>Tags</Th>
                   <Th>Last seen</Th>
-                  <Th>Expires</Th>
+                  <Th title="How much lifetime remains before this indicator expires from the working set">Freshness</Th>
                   <Th>TLP</Th>
                 </tr>
               </thead>
@@ -155,12 +156,13 @@ export default async function IndicatorsPage(props: {
                     <Td className="tabular text-xs text-ink-muted">
                       {i.lastSeen.toISOString().slice(0, 10)}
                     </Td>
-                    <Td className="tabular text-xs text-ink-muted">
-                      {i.expiresAt ? (
-                        i.expiresAt.toISOString().slice(0, 10)
-                      ) : (
-                        <Muted>never</Muted>
-                      )}
+                    <Td>
+                      <FreshnessBar
+                        firstSeen={i.firstSeen}
+                        lastSeen={i.lastSeen}
+                        expiresAt={i.expiresAt}
+                        showDate
+                      />
                     </Td>
                     <Td>
                       <TlpBadge tlp={i.tlp} />

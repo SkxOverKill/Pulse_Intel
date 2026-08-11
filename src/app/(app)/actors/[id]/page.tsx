@@ -13,6 +13,8 @@ import {
 import { DetailRow, Muted, PageHeader, SecondaryLink, Tag } from "@/components/ui/page";
 import { Table, Td, Th, Tr } from "@/components/ui/table";
 import { deleteActor, unlinkTechnique } from "../actions";
+import { ActivityTimeline } from "@/components/ui/activity-timeline";
+import type { TimelineEvent } from "@/components/ui/activity-timeline";
 import { AliasManager } from "./alias-manager";
 import { TechniqueMapper } from "./technique-mapper";
 
@@ -73,6 +75,78 @@ export default async function ActorDetailPage(props: {
         orderBy: { attackId: "asc" },
       })
     : [];
+
+  // Build a chronological event list from all the structured dates on this actor.
+  // Order matters: first/last seen anchor the actor's known active window, campaign
+  // events show operational tempo, and IOC observations show when intel was collected.
+  const timelineEvents: TimelineEvent[] = [];
+
+  if (actor.firstSeen) {
+    timelineEvents.push({
+      id: "first_seen",
+      date: actor.firstSeen.toISOString().slice(0, 10),
+      kind: "first_seen",
+      label: "Actor first observed",
+      note: actor.country ? `Attributed to ${actor.country}` : undefined,
+    });
+  }
+
+  for (const ca of actor.campaigns) {
+    if (ca.campaign.startDate) {
+      timelineEvents.push({
+        id: `camp_start_${ca.campaignId}`,
+        date: ca.campaign.startDate.toISOString().slice(0, 10),
+        kind: "campaign_start",
+        label: ca.campaign.name,
+        href: `/campaigns/${ca.campaignId}`,
+        note: ca.campaign.targetSectors.length
+          ? `Targeting: ${ca.campaign.targetSectors.slice(0, 3).join(", ")}`
+          : undefined,
+      });
+    }
+    if (ca.campaign.endDate) {
+      timelineEvents.push({
+        id: `camp_end_${ca.campaignId}`,
+        date: ca.campaign.endDate.toISOString().slice(0, 10),
+        kind: "campaign_end",
+        label: `${ca.campaign.name} concluded`,
+        href: `/campaigns/${ca.campaignId}`,
+      });
+    }
+  }
+
+  // Sample up to 10 unique indicator observation dates (lastSeen) so the
+  // timeline doesn't get swamped by a bulk import that ran on the same day.
+  const uniqueIocDates = [
+    ...new Map(
+      actor.indicators.map((i) => [
+        i.indicator.lastSeen.toISOString().slice(0, 10),
+        i,
+      ])
+    ).values(),
+  ].slice(0, 10);
+
+  for (const i of uniqueIocDates) {
+    timelineEvents.push({
+      id: `ioc_${i.indicatorId}`,
+      date: i.indicator.lastSeen.toISOString().slice(0, 10),
+      kind: "ioc_observed",
+      label: `${i.indicator.type} indicator observed`,
+      href: `/indicators/${i.indicatorId}`,
+      note: i.indicator.value.length > 60
+        ? `${i.indicator.value.slice(0, 60)}…`
+        : i.indicator.value,
+    });
+  }
+
+  if (actor.lastSeen) {
+    timelineEvents.push({
+      id: "last_seen",
+      date: actor.lastSeen.toISOString().slice(0, 10),
+      kind: "last_seen",
+      label: "Most recent confirmed activity",
+    });
+  }
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -324,6 +398,16 @@ export default async function ActorDetailPage(props: {
               </Table>
             )}
           </Card>
+
+          {timelineEvents.length > 0 ? (
+            <Card>
+              <CardHeader
+                title="Activity timeline"
+                hint="Chronological record of campaigns, IOC observations, and confirmed activity windows"
+              />
+              <ActivityTimeline events={timelineEvents} />
+            </Card>
+          ) : null}
 
           <Card>
             <CardHeader title="Campaigns" hint={`${actor.campaigns.length} linked`} />
