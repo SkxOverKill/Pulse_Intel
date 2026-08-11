@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Trimmed sample of https://research.checkpoint.com/feed/ fetched 2026-08-11
+  (first two items only). The live feed is WordPress-generated RSS 2.0:
+  summaries arrive HTML-wrapped in CDATA, full text sits in
+  <content:encoded>, guids are isPermaLink="false", and numeric entities
+  such as &#8230; appear inside otherwise-valid XML.
+-->
+<rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	>
+
+<channel>
+	<title>Check Point Research</title>
+	<atom:link href="https://research.checkpoint.com/feed/" rel="self" type="application/rss+xml" />
+	<link>https://research.checkpoint.com/</link>
+	<description>Latest Research by our Team</description>
+	<lastBuildDate>Mon, 10 Aug 2026 13:53:23 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>hourly</sy:updatePeriod>
+	<sy:updateFrequency>1</sy:updateFrequency>
+	<generator>https://wordpress.org/?v=7.0.3</generator>
+
+	<item>
+		<title>10th August – Threat Intelligence Report</title>
+		<link>https://research.checkpoint.com/2026/10th-august-threat-intelligence-report/</link>
+		<dc:creator><![CDATA[urias]]></dc:creator>
+		<pubDate>Mon, 10 Aug 2026 13:53:22 +0000</pubDate>
+		<category><![CDATA[Global Cyber Attack Reports]]></category>
+		<guid isPermaLink="false">https://research.checkpoint.com/?p=33349</guid>
+		<description><![CDATA[<p>For the latest discoveries in cyber research for the week of 10th August, please download our Threat Intelligence Bulletin. TOP ATTACKS AND BREACHES North Carolina Ports has suffered a cyberattack. The authority claims it has contained [&#8230;]</p>
+<p>The post <a href="https://research.checkpoint.com/2026/10th-august-threat-intelligence-report/">10th August – Threat Intelligence Report</a> appeared first on <a href="https://research.checkpoint.com">Check Point Research</a>.</p>
+]]></description>
+		<content:encoded><![CDATA[<p>For the latest discoveries in cyber research for the week of 10th August, please download our <a href="https://research.checkpoint.com/wp-content/uploads/2026/08/Threat_Intelligence_News_2026-08-10.pdf">Threat Intelligence Bulletin.</a></p>
+<p><strong>TOP ATTACKS AND BREACHES</strong></p>
+<ul>
+<li>North Carolina Ports, the US authority operating the ports of Wilmington and Morehead City, has <a href="https://therecord.media/cyberattack-north-carolina-ports">suffered</a> a cyberattack that forced some operations onto manual processes.</li>
+<li>Ryde, an electric scooter operator in Scandinavia, has disclosed a data breach affecting customer accounts. Attackers copied phone numbers, email addresses and payment histories.</li>
+</ul>
+]]></content:encoded>
+	</item>
+
+	<item>
+		<title>When Agentic Glue Melts: Cloudflare Code Mode</title>
+		<link>https://research.checkpoint.com/2026/when-agentic-glue-melts/</link>
+		<dc:creator><![CDATA[team]]></dc:creator>
+		<pubDate>Fri, 07 Aug 2026 09:12:00 +0000</pubDate>
+		<category><![CDATA[AI Research]]></category>
+		<guid isPermaLink="false">https://research.checkpoint.com/?p=33312</guid>
+		<description><![CDATA[<p>Check Point Research demonstrated that Cloudflare Code Mode inherited five vulnerabilities from the workerd runtime, enabling sandbox escape and cross-tenant data exposure.</p>
+]]></description>
+	</item>
+</channel>
+</rss>

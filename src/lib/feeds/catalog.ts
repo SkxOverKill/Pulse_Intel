@@ -222,6 +222,18 @@ export const FEED_CATALOG: CatalogSource[] = [
     description: "APT campaign research.",
   },
   {
+    name: "Check Point Research",
+    type: "RSS",
+    url: "https://research.checkpoint.com/feed/",
+    handler: "rss-news",
+    schedule: "0 * * * *",
+    defaultConfidence: 70,
+    defaultTlp: "CLEAR",
+    decayHalfLifeDays: null,
+    description:
+      "Check Point Research APT and campaign analysis. WordPress feed with no rate limits, but two quirks: summaries are HTML-wrapped in CDATA (with numeric entities like &#8230;) and guids are isPermaLink=\"false\", so article links must come from <link>, never <guid>.",
+  },
+  {
     name: "Krebs on Security",
     type: "RSS",
     url: "https://krebsonsecurity.com/feed/",
