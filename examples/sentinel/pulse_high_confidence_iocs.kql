@@ -1,0 +1,6 @@
+PulseIndicators
+| where whitelisted == false
+| where confidence >= 80
+| where type in ("DOMAIN", "URL", "IPV4", "IPV6", "SHA256")
+| summarize arg_max(lastSeen, *) by type, value
+| order by lastSeen desc

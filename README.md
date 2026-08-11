@@ -132,6 +132,7 @@ npm run verify:reports
 
 Create scoped API keys from `/settings`. See [`docs/API.md`](docs/API.md) for authentication,
 rate limits, parameters, and examples.
+Example integrations live in [`examples/`](examples/).
 
 Available read endpoints:
 

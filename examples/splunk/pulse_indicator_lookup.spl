@@ -1,0 +1,5 @@
+| inputlookup pulse_indicators.csv
+| where whitelisted="false"
+| eval normalized_value=lower(value)
+| stats latest(lastSeen) as lastSeen max(confidence) as confidence values(tags) as tags by type normalized_value severity source
+| sort - lastSeen
