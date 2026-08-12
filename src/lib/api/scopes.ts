@@ -6,6 +6,7 @@
 export const API_SCOPES = [
   { value: "indicators:read", label: "Read indicators" },
   { value: "actors:read", label: "Read threat actors" },
+  { value: "campaigns:read", label: "Read campaigns" },
 ] as const;
 
 export type ApiScope = (typeof API_SCOPES)[number]["value"];

@@ -141,9 +141,10 @@ Available read endpoints:
 - `GET /api/health?deep=1`
 - `GET /api/v1/indicators`
 - `GET /api/v1/indicators/:id`
-- `GET /api/v1/indicators?format=csv|stix|misp|snort`
+- `GET /api/v1/indicators?format=csv|stix|misp|snort|zeek`
 - `GET /api/v1/actors`
 - `GET /api/v1/actors/:id`
+- `GET /api/v1/campaigns`
 
 Whitelisted indicators are never returned by public API or export routes.
 Public API responses include `X-RateLimit-*` headers, and exhausted keys receive `429`

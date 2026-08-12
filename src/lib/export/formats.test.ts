@@ -6,6 +6,8 @@ import {
   toMispEvent,
   toSnortRules,
   toStixBundle,
+  toZeekIntel,
+  zeekIntelType,
   type ExportIndicator,
 } from "@/lib/export/formats";
 
@@ -191,11 +193,95 @@ describe("toSnortRules", () => {
   });
 });
 
+describe("zeekIntelType", () => {
+  it("folds every file hash into Intel::FILE_HASH", () => {
+    expect(zeekIntelType("MD5")).toBe("Intel::FILE_HASH");
+    expect(zeekIntelType("SHA1")).toBe("Intel::FILE_HASH");
+    expect(zeekIntelType("SHA256")).toBe("Intel::FILE_HASH");
+  });
+
+  it("maps network and address observables", () => {
+    expect(zeekIntelType("IPV4")).toBe("Intel::ADDR");
+    expect(zeekIntelType("IPV6")).toBe("Intel::ADDR");
+    expect(zeekIntelType("DOMAIN")).toBe("Intel::DOMAIN");
+    expect(zeekIntelType("URL")).toBe("Intel::URL");
+    expect(zeekIntelType("EMAIL")).toBe("Intel::EMAIL");
+  });
+
+  it("returns null for types Zeek has no Intel::Type for", () => {
+    expect(zeekIntelType("CVE")).toBeNull();
+    expect(zeekIntelType("ASN")).toBeNull();
+    expect(zeekIntelType("MUTEX")).toBeNull();
+    expect(zeekIntelType("BTC_ADDRESS")).toBeNull();
+  });
+});
+
+describe("toZeekIntel", () => {
+  it("leads with the #fields header and emits one tab-separated row per mappable indicator", () => {
+    const out = toZeekIntel([
+      ind({ type: "IPV4", value: "1.2.3.4" }),
+      ind({ type: "DOMAIN", value: "Evil.COM", normalizedValue: "evil.com" }),
+    ]);
+    const lines = out.trimEnd().split("\n");
+    expect(lines[0]).toBe("#fields\tindicator\tindicator_type\tmeta.source\tmeta.desc");
+    expect(lines[1].split("\t")[0]).toBe("1.2.3.4");
+    expect(lines[1].split("\t")[1]).toBe("Intel::ADDR");
+    // domains use the normalized (lowercased) form Zeek compares against
+    expect(lines[2].split("\t")[0]).toBe("evil.com");
+    expect(lines[2].split("\t")[1]).toBe("Intel::DOMAIN");
+  });
+
+  it("strips the scheme from URLs (Zeek matches host+uri)", () => {
+    const out = toZeekIntel([
+      ind({ type: "URL", value: "https://evil.com/malware.bin?x=1" }),
+    ]);
+    const row = out.trimEnd().split("\n")[1].split("\t");
+    expect(row[0]).toBe("evil.com/malware.bin?x=1");
+    expect(row[1]).toBe("Intel::URL");
+  });
+
+  it("omits non-matchable types entirely (no trailing comment that Zeek would misparse)", () => {
+    const out = toZeekIntel([
+      ind({ type: "IPV4", value: "1.2.3.4" }),
+      ind({ type: "CVE", value: "CVE-2026-1" }),
+    ]);
+    expect(out).not.toContain("CVE-2026-1");
+    // only the header line may begin with '#'
+    const hashLines = out.trimEnd().split("\n").filter((l) => l.startsWith("#"));
+    expect(hashLines).toHaveLength(1);
+  });
+
+  it("drops an indicator whose value contains a tab so columns never shift", () => {
+    const out = toZeekIntel([
+      ind({ type: "DOMAIN", value: "bad\tdomain.com", normalizedValue: "bad\tdomain.com" }),
+      ind({ type: "IPV4", value: "9.9.9.9" }),
+    ]);
+    const lines = out.trimEnd().split("\n");
+    expect(lines).toHaveLength(2); // header + the clean IPv4 only
+    expect(lines[1].split("\t")[0]).toBe("9.9.9.9");
+  });
+
+  it("carries source and a description in the meta columns", () => {
+    const out = toZeekIntel([
+      ind({ type: "IPV4", value: "1.2.3.4", source: "abuse.ch", severity: "HIGH", confidence: 80, tags: ["c2"] }),
+    ]);
+    const row = out.trimEnd().split("\n")[1].split("\t");
+    expect(row[2]).toBe("abuse.ch");
+    expect(row[3]).toBe("IPV4 sev=HIGH conf=80 tags=c2");
+  });
+
+  it("falls back to a default source when the indicator has none", () => {
+    const out = toZeekIntel([ind({ type: "IPV4", value: "1.2.3.4", source: null })]);
+    expect(out.trimEnd().split("\n")[1].split("\t")[2]).toBe("pulse-intelligence");
+  });
+});
+
 describe("formatExport dispatch", () => {
   it("routes each format id to its formatter", () => {
     const one = [ind()];
     expect(formatExport(one, "csv")).toBe(toCsv(one));
     expect(formatExport(one, "snort")).toBe(toSnortRules(one));
+    expect(formatExport(one, "zeek")).toBe(toZeekIntel(one));
     expect(JSON.parse(formatExport(one, "stix")).type).toBe("bundle");
     expect(JSON.parse(formatExport(one, "misp")).Event).toBeDefined();
   });

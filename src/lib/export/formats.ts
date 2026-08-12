@@ -1,5 +1,6 @@
 /**
- * Indicator export formatters — CSV, STIX 2.1, MISP JSON, and Snort/Suricata.
+ * Indicator export formatters — CSV, STIX 2.1, MISP JSON, Snort/Suricata, and
+ * Zeek Intel framework.
  *
  * Pure and dependency-free (no `db`, no `server-only`): the route handler and a
  * future scheduled-report worker both format the same way. Callers pass an
@@ -27,7 +28,7 @@ export type ExportIndicator = {
   source?: string | null;
 };
 
-export type ExportFormat = "csv" | "stix" | "misp" | "snort";
+export type ExportFormat = "csv" | "stix" | "misp" | "snort" | "zeek";
 
 export const EXPORT_FORMATS: {
   id: ExportFormat;
@@ -54,6 +55,12 @@ export const EXPORT_FORMATS: {
     extension: "rules",
     contentType: "text/plain",
   },
+  {
+    id: "zeek",
+    label: "Zeek Intel framework",
+    extension: "intel",
+    contentType: "text/plain",
+  },
 ];
 
 /** Dispatch to a formatter. Returns the serialized body as a string. */
@@ -70,6 +77,8 @@ export function formatExport(
       return toMispEvent(indicators);
     case "snort":
       return toSnortRules(indicators);
+    case "zeek":
+      return toZeekIntel(indicators);
   }
 }
 
@@ -364,6 +373,103 @@ function urlPath(url: string): string {
   } catch {
     return url;
   }
+}
+
+// --- Zeek (Bro) Intel framework --------------------------------------------
+
+/**
+ * Zeek `Intel::Type` for an indicator, or null when Zeek has no matching type.
+ * MD5/SHA1/SHA256 all fold into `Intel::FILE_HASH` — Zeek keys file-hash intel
+ * by the hash string regardless of algorithm. Types Zeek cannot match on (CVE,
+ * ASN, registry key, mutex, BTC address, user agent) return null and are
+ * omitted, the same rule the Snort exporter follows.
+ */
+export function zeekIntelType(type: IndicatorType): string | null {
+  switch (type) {
+    case "IPV4":
+    case "IPV6":
+      return "Intel::ADDR";
+    case "DOMAIN":
+      return "Intel::DOMAIN";
+    case "URL":
+      return "Intel::URL";
+    case "EMAIL":
+      return "Intel::EMAIL";
+    case "MD5":
+    case "SHA1":
+    case "SHA256":
+      return "Intel::FILE_HASH";
+    case "FILENAME":
+      return "Intel::FILE_NAME";
+    case "CVE":
+    case "ASN":
+    case "REGISTRY_KEY":
+    case "MUTEX":
+    case "BTC_ADDRESS":
+    case "USER_AGENT":
+      return null;
+  }
+}
+
+/**
+ * The value Zeek stores as the indicator. `Intel::URL` is matched against the
+ * request's host+URI with no scheme, so the scheme is stripped; domains and
+ * hashes use the normalized (lowercased, refanged) form Zeek compares against.
+ */
+function zeekIndicatorValue(i: ExportIndicator): string {
+  switch (i.type) {
+    case "URL":
+      return i.value.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
+    case "DOMAIN":
+    case "MD5":
+    case "SHA1":
+    case "SHA256":
+      return i.normalizedValue;
+    default:
+      return i.value;
+  }
+}
+
+/** Zeek's ASCII reader is tab-delimited; `-` is its default unset placeholder. */
+function zeekField(value: string): string {
+  return value.trim() === "" ? "-" : value;
+}
+
+const ZEEK_FIELDS = [
+  "indicator",
+  "indicator_type",
+  "meta.source",
+  "meta.desc",
+] as const;
+
+/**
+ * Emits a Zeek Intel framework feed loadable by `Intel::read_files`. The file
+ * is a `#fields` header followed by tab-separated rows — and nothing else.
+ *
+ * Unlike the Snort exporter, skipped indicators are NOT annotated in a trailing
+ * comment: Zeek's ASCII input reader treats `#` lines *after* the header as
+ * data, so a comment there would be parsed as a bogus indicator. Keeping the
+ * body strictly header+rows is what makes the file loadable, so non-matchable
+ * types are simply omitted. Any indicator whose value contains a tab or newline
+ * (only possible from a malformed feed) is dropped rather than shift columns.
+ */
+export function toZeekIntel(indicators: ExportIndicator[]): string {
+  const lines: string[] = [`#fields\t${ZEEK_FIELDS.join("\t")}`];
+
+  for (const i of indicators) {
+    const intelType = zeekIntelType(i.type);
+    const value = zeekIndicatorValue(i);
+    if (!intelType || /[\t\r\n]/.test(value)) continue;
+
+    const source = zeekField(i.source ?? "pulse-intelligence");
+    const desc = zeekField(
+      `${i.type} sev=${i.severity} conf=${i.confidence}` +
+        (i.tags.length ? ` tags=${i.tags.join(",")}` : ""),
+    );
+    lines.push([value, intelType, source, desc].join("\t"));
+  }
+
+  return lines.join("\n") + "\n";
 }
 
 // --- shared ----------------------------------------------------------------
