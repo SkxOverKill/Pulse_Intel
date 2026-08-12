@@ -6,6 +6,7 @@ import {
   exportHeader,
   exportBatch,
   exportFooter,
+  createExportState,
   type ExportFormat,
   type ExportIndicator,
 } from "@/lib/export/formats";
@@ -101,12 +102,17 @@ export async function GET(req: NextRequest) {
     const totalCount = await db.indicator.count({ where });
     const cappedCount = Math.min(totalCount, 50_000);
 
+    // A Response/NextResponse body must yield bytes, not strings — enqueuing a
+    // raw string throws "Received non-Uint8Array chunk" at read time. Encode
+    // every chunk before enqueuing.
+    const encoder = new TextEncoder();
+
     const stream = new ReadableStream({
       async start(controller) {
-        controller.enqueue(exportHeader(format, cappedCount));
+        const state = createExportState();
+        controller.enqueue(encoder.encode(exportHeader(format, cappedCount)));
 
         const BATCH_SIZE = 1_000;
-        let isFirstBatch = true;
         let skip = 0;
 
         while (skip < cappedCount) {
@@ -147,14 +153,13 @@ export async function GET(req: NextRequest) {
             source: r.source?.name ?? null,
           }));
 
-          const batchStr = exportBatch(indicators, format, isFirstBatch);
-          if (batchStr) controller.enqueue(batchStr);
+          const batchStr = exportBatch(indicators, format, state);
+          if (batchStr) controller.enqueue(encoder.encode(batchStr));
 
-          isFirstBatch = false;
           skip += rows.length;
         }
 
-        controller.enqueue(exportFooter(format));
+        controller.enqueue(encoder.encode(exportFooter(format, state)));
         controller.close();
       },
     });

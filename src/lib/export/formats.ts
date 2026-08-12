@@ -514,15 +514,37 @@ export function exportHeader(format: ExportFormat, count: number): string {
   }
 }
 
-let snortSid = SNORT_SID_BASE;
+/**
+ * Per-export mutable state threaded through {@link exportBatch} and
+ * {@link exportFooter}. A single export instantiates one of these via
+ * {@link createExportState}; nothing is shared across requests.
+ *
+ * - `hasEmitted` tracks whether any array element (STIX object / MISP
+ *   attribute) has been written yet, so the inter-element comma is decided by
+ *   *actual emission*, not batch position — a leading batch that produces no
+ *   objects (e.g. all non-observable types) must not leave a dangling comma.
+ * - `snortSid` is the Snort SID counter. Keeping it here (not module-global)
+ *   makes repeat exports deterministic and safe under concurrency.
+ * - `snortSkipped` collects non-network indicators so the footer can report
+ *   what was left out rather than silently dropping it.
+ */
+export type ExportState = {
+  hasEmitted: boolean;
+  snortSid: number;
+  snortSkipped: string[];
+};
+
+export function createExportState(): ExportState {
+  return { hasEmitted: false, snortSid: SNORT_SID_BASE, snortSkipped: [] };
+}
 
 export function exportBatch(
   indicators: ExportIndicator[],
   format: ExportFormat,
-  isFirstBatch: boolean,
+  state: ExportState,
 ): string {
   if (indicators.length === 0) return "";
-  
+
   switch (format) {
     case "csv": {
       const rows = [];
@@ -564,10 +586,12 @@ export function exportBatch(
     case "snort": {
       const lines = [];
       for (const i of indicators) {
-        const rule = snortRule(i, snortSid);
+        const rule = snortRule(i, state.snortSid);
         if (rule) {
           lines.push(rule);
-          snortSid++;
+          state.snortSid++;
+        } else {
+          state.snortSkipped.push(`${i.type} ${i.value}`);
         }
       }
       return lines.length ? lines.join("\n") + "\n" : "";
@@ -596,9 +620,10 @@ export function exportBatch(
         .filter((o): o is NonNullable<typeof o> => o !== null);
       
       let out = "";
-      for (let idx = 0; idx < objects.length; idx++) {
-        if (!isFirstBatch || idx > 0) out += ",\n";
-        out += JSON.stringify(objects[idx], null, 2).split("\n").map(l => "    " + l).join("\n");
+      for (const obj of objects) {
+        if (state.hasEmitted) out += ",\n";
+        out += JSON.stringify(obj, null, 2).split("\n").map(l => "    " + l).join("\n");
+        state.hasEmitted = true;
       }
       return out;
     }
@@ -616,21 +641,34 @@ export function exportBatch(
       }));
       
       let out = "";
-      for (let idx = 0; idx < attributes.length; idx++) {
-        if (!isFirstBatch || idx > 0) out += ",\n";
-        out += JSON.stringify(attributes[idx], null, 2).split("\n").map(l => "      " + l).join("\n");
+      for (const attr of attributes) {
+        if (state.hasEmitted) out += ",\n";
+        out += JSON.stringify(attr, null, 2).split("\n").map(l => "      " + l).join("\n");
+        state.hasEmitted = true;
       }
       return out;
     }
   }
 }
 
-export function exportFooter(format: ExportFormat): string {
+export function exportFooter(format: ExportFormat, state: ExportState): string {
   switch (format) {
     case "csv":
-    case "snort":
     case "zeek":
       return "";
+    case "snort": {
+      // Mirror the non-streaming exporter: list the non-network indicators that
+      // couldn't become rules so the operator knows what was left out. Zeek
+      // deliberately omits this (its reader parses trailing `#` lines as data);
+      // Snort treats `#` as a comment anywhere, so a trailing block is safe.
+      if (state.snortSkipped.length === 0) return "";
+      const parts = [
+        "",
+        `# ${state.snortSkipped.length} non-network indicator(s) not expressible as rules:`,
+        ...state.snortSkipped.map((s) => `#   ${s}`),
+      ];
+      return parts.join("\n") + "\n";
+    }
     case "stix":
       return "\n  ]\n}";
     case "misp":
