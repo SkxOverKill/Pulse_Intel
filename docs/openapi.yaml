@@ -182,7 +182,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [json, csv, stix, misp, snort]
+            enum: [json, csv, stix, misp, snort, zeek]
             default: json
       responses:
         "200":

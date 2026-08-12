@@ -58,7 +58,7 @@ Query parameters:
 | `type` | `IPV4`, `IPV6`, `DOMAIN`, `URL`, `MD5`, `SHA1`, `SHA256`, `EMAIL`, `CVE`, `BTC_ADDRESS`, `REGISTRY_KEY`, `MUTEX`, `FILENAME`, `USER_AGENT`, or `ASN` |
 | `severity` | `INFO`, `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL` |
 | `tag` | Exact tag match |
-| `format` | `json`, `csv`, `stix`, `misp`, or `snort` |
+| `format` | `json`, `csv`, `stix`, `misp`, `snort`, or `zeek` |
 
 Whitelisted and expired indicators are never returned.
 
