@@ -3,7 +3,9 @@ import { db } from "@/lib/db";
 import { requireApiKey } from "@/lib/api/auth";
 import {
   EXPORT_FORMATS,
-  formatExport,
+  exportHeader,
+  exportBatch,
+  exportFooter,
   type ExportFormat,
   type ExportIndicator,
 } from "@/lib/export/formats";
@@ -94,11 +96,79 @@ export async function GET(req: NextRequest) {
     ...(campaignId ? { campaigns: { some: { campaignId } } } : {}),
   };
 
-  // Non-JSON formats are a full-set export, not a paginated page — matches the
-  // interactive export route's behavior (export the filtered view, capped).
-  const take = format === "json" ? pageSize : 50_000;
-  const skip = format === "json" ? (page - 1) * pageSize : 0;
+  if (format !== "json") {
+    const meta = EXPORT_FORMATS.find((f) => f.id === format)!;
+    const totalCount = await db.indicator.count({ where });
+    const cappedCount = Math.min(totalCount, 50_000);
 
+    const stream = new ReadableStream({
+      async start(controller) {
+        controller.enqueue(exportHeader(format, cappedCount));
+
+        const BATCH_SIZE = 1_000;
+        let isFirstBatch = true;
+        let skip = 0;
+
+        while (skip < cappedCount) {
+          const rows = await db.indicator.findMany({
+            where,
+            orderBy: { lastSeen: "desc" },
+            skip,
+            take: Math.min(BATCH_SIZE, cappedCount - skip),
+            select: {
+              id: true,
+              type: true,
+              value: true,
+              normalizedValue: true,
+              confidence: true,
+              severity: true,
+              tlp: true,
+              tags: true,
+              firstSeen: true,
+              lastSeen: true,
+              expiresAt: true,
+              source: { select: { name: true } },
+            },
+          });
+
+          if (rows.length === 0) break;
+
+          const indicators: ExportIndicator[] = rows.map((r) => ({
+            type: r.type,
+            value: r.value,
+            normalizedValue: r.normalizedValue,
+            confidence: r.confidence,
+            severity: r.severity,
+            tlp: r.tlp,
+            tags: r.tags,
+            firstSeen: r.firstSeen,
+            lastSeen: r.lastSeen,
+            expiresAt: r.expiresAt,
+            source: r.source?.name ?? null,
+          }));
+
+          const batchStr = exportBatch(indicators, format, isFirstBatch);
+          if (batchStr) controller.enqueue(batchStr);
+
+          isFirstBatch = false;
+          skip += rows.length;
+        }
+
+        controller.enqueue(exportFooter(format));
+        controller.close();
+      },
+    });
+
+    return new NextResponse(stream, {
+      headers: {
+        ...auth.headers,
+        "Content-Type": `${meta.contentType}; charset=utf-8`,
+      },
+    });
+  }
+
+  const skip = (page - 1) * pageSize;
+  const take = pageSize;
   const [rows, total] = await Promise.all([
     db.indicator.findMany({
       where,
@@ -120,32 +190,8 @@ export async function GET(req: NextRequest) {
         source: { select: { name: true } },
       },
     }),
-    format === "json" ? db.indicator.count({ where }) : Promise.resolve(0),
+    db.indicator.count({ where }),
   ]);
-
-  const indicators: ExportIndicator[] = rows.map((r) => ({
-    type: r.type,
-    value: r.value,
-    normalizedValue: r.normalizedValue,
-    confidence: r.confidence,
-    severity: r.severity,
-    tlp: r.tlp,
-    tags: r.tags,
-    firstSeen: r.firstSeen,
-    lastSeen: r.lastSeen,
-    expiresAt: r.expiresAt,
-    source: r.source?.name ?? null,
-  }));
-
-  if (format !== "json") {
-    const meta = EXPORT_FORMATS.find((f) => f.id === format)!;
-    return new NextResponse(formatExport(indicators, format), {
-      headers: {
-        ...auth.headers,
-        "Content-Type": `${meta.contentType}; charset=utf-8`,
-      },
-    });
-  }
 
   return NextResponse.json(
     {

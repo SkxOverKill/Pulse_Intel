@@ -27,16 +27,21 @@ export default async function EnrichmentPage() {
 
   const providers = configuredProviders();
 
-  // Sequential rather than Promise.all — the local dev Postgres is fragile
-  // under concurrent queries (see the note in src/lib/db.ts).
-  const pending = await db.indicator.count({
-    where: { whitelisted: false, enrichments: { none: {} } },
-  });
-  const enriched = await db.indicator.count({
-    where: { enrichments: { some: {} } },
-  });
-  const malicious = await db.enrichment.count({ where: { verdict: "MALICIOUS" } });
-  const failed = await db.enrichment.count({ where: { NOT: { error: null } } });
+  // Batched into a single raw query to avoid multiple round-trips and
+  // concurrent query pressure on the local dev Postgres (see src/lib/db.ts).
+  const counts = await db.$queryRaw<
+    [{ pending: bigint; enriched: bigint; malicious: bigint; failed: bigint }]
+  >`
+    SELECT 
+      (SELECT count(*)::bigint FROM "Indicator" WHERE "whitelisted" = false AND NOT EXISTS (SELECT 1 FROM "Enrichment" WHERE "indicatorId" = "Indicator"."id")) AS pending,
+      (SELECT count(*)::bigint FROM "Indicator" WHERE EXISTS (SELECT 1 FROM "Enrichment" WHERE "indicatorId" = "Indicator"."id")) AS enriched,
+      (SELECT count(*)::bigint FROM "Enrichment" WHERE "verdict" = 'MALICIOUS') AS malicious,
+      (SELECT count(*)::bigint FROM "Enrichment" WHERE "error" IS NOT NULL) AS failed
+  `;
+  const pending = Number(counts[0].pending);
+  const enriched = Number(counts[0].enriched);
+  const malicious = Number(counts[0].malicious);
+  const failed = Number(counts[0].failed);
 
   const quotas = await Promise.all(
     providers.map(async (p) => {

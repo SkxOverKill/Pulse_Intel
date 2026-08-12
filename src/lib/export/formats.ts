@@ -494,3 +494,146 @@ function uuidFromSeed(seed: string): string {
   const hex = bytes.map((b) => b.toString(16).padStart(2, "0"));
   return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
 }
+
+export function exportHeader(format: ExportFormat, count: number): string {
+  switch (format) {
+    case "csv":
+      return CSV_COLUMNS.join(",") + "\r\n";
+    case "snort":
+      return [
+        "# Pulse Intelligence export — Snort/Suricata rules",
+        `# ${count} indicator(s) considered; only network observables become rules.`,
+        "",
+      ].join("\n") + "\n";
+    case "zeek":
+      return `#fields\t${ZEEK_FIELDS.join("\t")}\n`;
+    case "stix":
+      return `{\n  "type": "bundle",\n  "id": "bundle--${uuidFromSeed(`pulse-export-${count}-${Date.now()}`)}",\n  "objects": [\n`;
+    case "misp":
+      return `{\n  "Event": {\n    "info": "Pulse Intelligence export — ${count} indicator(s)",\n    "date": "${new Date().toISOString().slice(0, 10)}",\n    "threat_level_id": "2",\n    "analysis": "2",\n    "Attribute": [\n`;
+  }
+}
+
+let snortSid = SNORT_SID_BASE;
+
+export function exportBatch(
+  indicators: ExportIndicator[],
+  format: ExportFormat,
+  isFirstBatch: boolean,
+): string {
+  if (indicators.length === 0) return "";
+  
+  switch (format) {
+    case "csv": {
+      const rows = [];
+      for (const i of indicators) {
+        rows.push(
+          [
+            i.type,
+            i.value,
+            String(i.confidence),
+            i.severity,
+            i.tlp,
+            i.tags.join("|"),
+            i.source ?? "",
+            i.firstSeen.toISOString(),
+            i.lastSeen.toISOString(),
+          ]
+            .map(csvCell)
+            .join(","),
+        );
+      }
+      return rows.join("\r\n") + "\r\n";
+    }
+    case "zeek": {
+      const lines = [];
+      for (const i of indicators) {
+        const intelType = zeekIntelType(i.type);
+        const value = zeekIndicatorValue(i);
+        if (!intelType || /[\t\r\n]/.test(value)) continue;
+
+        const source = zeekField(i.source ?? "pulse-intelligence");
+        const desc = zeekField(
+          `${i.type} sev=${i.severity} conf=${i.confidence}` +
+            (i.tags.length ? ` tags=${i.tags.join(",")}` : ""),
+        );
+        lines.push([value, intelType, source, desc].join("\t"));
+      }
+      return lines.length ? lines.join("\n") + "\n" : "";
+    }
+    case "snort": {
+      const lines = [];
+      for (const i of indicators) {
+        const rule = snortRule(i, snortSid);
+        if (rule) {
+          lines.push(rule);
+          snortSid++;
+        }
+      }
+      return lines.length ? lines.join("\n") + "\n" : "";
+    }
+    case "stix": {
+      const objects = indicators
+        .map((i) => {
+          const pattern = stixPattern(i);
+          if (!pattern) return null;
+          return {
+            type: "indicator",
+            spec_version: "2.1",
+            id: stixId(i),
+            created: i.firstSeen.toISOString(),
+            modified: i.lastSeen.toISOString(),
+            valid_from: i.firstSeen.toISOString(),
+            ...(i.expiresAt ? { valid_until: i.expiresAt.toISOString() } : {}),
+            name: `${i.type} ${i.value}`,
+            pattern,
+            pattern_type: "stix",
+            confidence: i.confidence,
+            labels: i.tags.length ? i.tags : ["malicious-activity"],
+            object_marking_refs: [TLP_TO_STIX_MARKING[i.tlp]],
+          };
+        })
+        .filter((o): o is NonNullable<typeof o> => o !== null);
+      
+      let out = "";
+      for (let idx = 0; idx < objects.length; idx++) {
+        if (!isFirstBatch || idx > 0) out += ",\n";
+        out += JSON.stringify(objects[idx], null, 2).split("\n").map(l => "    " + l).join("\n");
+      }
+      return out;
+    }
+    case "misp": {
+      const attributes = indicators.map((i) => ({
+        type: MISP_ATTRIBUTE_TYPE[i.type],
+        category: mispCategory(i.type),
+        value: i.value,
+        to_ids: i.confidence >= 50,
+        comment: i.source ? `source: ${i.source}` : "",
+        Tag: [
+          { name: `tlp:${i.tlp.toLowerCase().replace("_", "-")}` },
+          ...i.tags.map((t) => ({ name: t })),
+        ],
+      }));
+      
+      let out = "";
+      for (let idx = 0; idx < attributes.length; idx++) {
+        if (!isFirstBatch || idx > 0) out += ",\n";
+        out += JSON.stringify(attributes[idx], null, 2).split("\n").map(l => "      " + l).join("\n");
+      }
+      return out;
+    }
+  }
+}
+
+export function exportFooter(format: ExportFormat): string {
+  switch (format) {
+    case "csv":
+    case "snort":
+    case "zeek":
+      return "";
+    case "stix":
+      return "\n  ]\n}";
+    case "misp":
+      return "\n    ]\n  }\n}";
+  }
+}
