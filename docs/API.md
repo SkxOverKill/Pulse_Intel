@@ -20,6 +20,7 @@ Keys may be scoped. A key with no scopes has full API access.
 |---|---|
 | `indicators:read` | `/api/v1/indicators`, `/api/v1/indicators/:id` |
 | `actors:read` | `/api/v1/actors`, `/api/v1/actors/:id` |
+| `campaigns:read` | `/api/v1/campaigns` |
 
 ## Rate Limits
 
@@ -89,6 +90,30 @@ Example:
 ```bash
 curl -H "Authorization: Bearer $PULSE_API_KEY" \
   "https://your-pulse-host.example/api/v1/actors?active=true"
+```
+
+## Campaigns
+
+```http
+GET /api/v1/campaigns
+```
+
+Query parameters:
+
+| Parameter | Description |
+|---|---|
+| `page` | Positive integer, default `1` |
+| `pageSize` | Positive integer, default `50`, max `200` |
+| `status` | `SUSPECTED`, `ACTIVE`, `DORMANT`, or `CONCLUDED` |
+
+Each campaign includes `actorCount`, `techniqueCount`, and `indicatorCount` so a
+consumer can gauge scope without a second call.
+
+Example:
+
+```bash
+curl -H "Authorization: Bearer $PULSE_API_KEY" \
+  "https://your-pulse-host.example/api/v1/campaigns?status=ACTIVE"
 ```
 
 ## Health

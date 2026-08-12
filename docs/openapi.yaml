@@ -37,6 +37,14 @@ components:
         minimum: 1
         maximum: 200
         default: 50
+    CampaignPageSize:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
   schemas:
     Error:
       type: object
@@ -139,6 +147,64 @@ components:
         - confidence
         - tlp
         - aliases
+    Campaign:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type:
+            - string
+            - "null"
+        status:
+          type: string
+          enum: [SUSPECTED, ACTIVE, DORMANT, CONCLUDED]
+        startDate:
+          type:
+            - string
+            - "null"
+          format: date-time
+        endDate:
+          type:
+            - string
+            - "null"
+          format: date-time
+        targetSectors:
+          type: array
+          items:
+            type: string
+        targetCountries:
+          type: array
+          items:
+            type: string
+        confidence:
+          type: integer
+          minimum: 0
+          maximum: 100
+        tlp:
+          type: string
+        actorCount:
+          type: integer
+        techniqueCount:
+          type: integer
+        indicatorCount:
+          type: integer
+      required:
+        - id
+        - name
+        - slug
+        - status
+        - targetSectors
+        - targetCountries
+        - confidence
+        - tlp
+        - actorCount
+        - techniqueCount
+        - indicatorCount
 paths:
   /api/health:
     get:
@@ -294,3 +360,32 @@ paths:
                     $ref: "#/components/schemas/Actor"
         "404":
           description: Actor not found
+  /api/v1/campaigns:
+    get:
+      summary: List campaigns
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/CampaignPageSize"
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [SUSPECTED, ACTIVE, DORMANT, CONCLUDED]
+      responses:
+        "200":
+          description: Campaign list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Campaign"
+                  page:
+                    type: integer
+                  pageSize:
+                    type: integer
+                  total:
+                    type: integer
