@@ -83,23 +83,42 @@ export default async function DashboardPage() {
     newCveByDay,
     severityGroups,
     typeGroups,
-    cvssCritical,
-    cvssHigh,
-    cvssMedium,
-    cvssLow,
-    cvssUnscored,
+    cvssCounts,
     matrix,
   ] = await Promise.all([
-    (async () => ({
-      actors: await db.threatActor.count(),
-      campaigns: await db.campaign.count({ where: { status: "ACTIVE" } }),
-      indicators: await db.indicator.count({ where: { whitelisted: false } }),
-      kev: await db.vulnerability.count({ where: { knownExploited: true } }),
-      techniques: await db.technique.count({ where: { deprecated: false } }),
-      reports: await db.report.count(),
-      sources: await db.source.count({ where: { enabled: true } }),
-      news: await db.newsItem.count(),
-    }))(),
+    db.$queryRaw<
+      [
+        {
+          actors: bigint;
+          campaigns: bigint;
+          indicators: bigint;
+          kev: bigint;
+          techniques: bigint;
+          reports: bigint;
+          sources: bigint;
+          news: bigint;
+        },
+      ]
+    >`
+      SELECT 
+        (SELECT count(*)::bigint FROM "ThreatActor") as actors,
+        (SELECT count(*)::bigint FROM "Campaign" WHERE status = 'ACTIVE') as campaigns,
+        (SELECT count(*)::bigint FROM "Indicator" WHERE whitelisted = false) as indicators,
+        (SELECT count(*)::bigint FROM "Vulnerability" WHERE "knownExploited" = true) as kev,
+        (SELECT count(*)::bigint FROM "Technique" WHERE deprecated = false) as techniques,
+        (SELECT count(*)::bigint FROM "Report") as reports,
+        (SELECT count(*)::bigint FROM "Source" WHERE enabled = true) as sources,
+        (SELECT count(*)::bigint FROM "NewsItem") as news
+    `.then((res) => ({
+      actors: Number(res[0].actors),
+      campaigns: Number(res[0].campaigns),
+      indicators: Number(res[0].indicators),
+      kev: Number(res[0].kev),
+      techniques: Number(res[0].techniques),
+      reports: Number(res[0].reports),
+      sources: Number(res[0].sources),
+      news: Number(res[0].news),
+    })),
     db.newsItem.findMany({
       orderBy: [{ relevanceScore: "desc" }, { publishedAt: "desc" }],
       take: 6,
@@ -140,11 +159,31 @@ export default async function DashboardPage() {
       where: { whitelisted: false },
       _count: { _all: true },
     }),
-    db.vulnerability.count({ where: { cvssV3: { gte: 9 } } }),
-    db.vulnerability.count({ where: { cvssV3: { gte: 7, lt: 9 } } }),
-    db.vulnerability.count({ where: { cvssV3: { gte: 4, lt: 7 } } }),
-    db.vulnerability.count({ where: { cvssV3: { lt: 4 } } }),
-    db.vulnerability.count({ where: { cvssV3: null } }),
+    db.$queryRaw<
+      [
+        {
+          critical: bigint;
+          high: bigint;
+          medium: bigint;
+          low: bigint;
+          unscored: bigint;
+        },
+      ]
+    >`
+      SELECT
+        count(*) FILTER (WHERE "cvssV3" >= 9)::bigint as critical,
+        count(*) FILTER (WHERE "cvssV3" >= 7 AND "cvssV3" < 9)::bigint as high,
+        count(*) FILTER (WHERE "cvssV3" >= 4 AND "cvssV3" < 7)::bigint as medium,
+        count(*) FILTER (WHERE "cvssV3" < 4)::bigint as low,
+        count(*) FILTER (WHERE "cvssV3" IS NULL)::bigint as unscored
+      FROM "Vulnerability"
+    `.then((res) => ({
+      critical: Number(res[0].critical),
+      high: Number(res[0].high),
+      medium: Number(res[0].medium),
+      low: Number(res[0].low),
+      unscored: Number(res[0].unscored),
+    })),
     getMatrix("ENTERPRISE"),
   ]);
 
@@ -160,11 +199,11 @@ export default async function DashboardPage() {
     .filter((b) => b.value > 0);
 
   const cvssBars: BarDatum[] = [
-    { label: "Critical (9-10)", value: cvssCritical, color: CVSS_BAND_COLOR.Critical },
-    { label: "High (7-9)", value: cvssHigh, color: CVSS_BAND_COLOR.High },
-    { label: "Medium (4-7)", value: cvssMedium, color: CVSS_BAND_COLOR.Medium },
-    { label: "Low (0-4)", value: cvssLow, color: CVSS_BAND_COLOR.Low },
-    { label: "Unscored", value: cvssUnscored, color: CVSS_BAND_COLOR.Unscored },
+    { label: "Critical (9-10)", value: cvssCounts.critical, color: CVSS_BAND_COLOR.Critical },
+    { label: "High (7-9)", value: cvssCounts.high, color: CVSS_BAND_COLOR.High },
+    { label: "Medium (4-7)", value: cvssCounts.medium, color: CVSS_BAND_COLOR.Medium },
+    { label: "Low (0-4)", value: cvssCounts.low, color: CVSS_BAND_COLOR.Low },
+    { label: "Unscored", value: cvssCounts.unscored, color: CVSS_BAND_COLOR.Unscored },
   ].filter((b) => b.value > 0);
 
   const sortedTypes = [...typeGroups].sort((a, b) => b._count._all - a._count._all);

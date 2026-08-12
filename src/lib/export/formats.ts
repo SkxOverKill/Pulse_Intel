@@ -494,3 +494,184 @@ function uuidFromSeed(seed: string): string {
   const hex = bytes.map((b) => b.toString(16).padStart(2, "0"));
   return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
 }
+
+export function exportHeader(format: ExportFormat, count: number): string {
+  switch (format) {
+    case "csv":
+      return CSV_COLUMNS.join(",") + "\r\n";
+    case "snort":
+      return [
+        "# Pulse Intelligence export — Snort/Suricata rules",
+        `# ${count} indicator(s) considered; only network observables become rules.`,
+        "",
+      ].join("\n") + "\n";
+    case "zeek":
+      return `#fields\t${ZEEK_FIELDS.join("\t")}\n`;
+    case "stix":
+      return `{\n  "type": "bundle",\n  "id": "bundle--${uuidFromSeed(`pulse-export-${count}-${Date.now()}`)}",\n  "objects": [\n`;
+    case "misp":
+      return `{\n  "Event": {\n    "info": "Pulse Intelligence export — ${count} indicator(s)",\n    "date": "${new Date().toISOString().slice(0, 10)}",\n    "threat_level_id": "2",\n    "analysis": "2",\n    "Attribute": [\n`;
+  }
+}
+
+/**
+ * Per-export mutable state threaded through {@link exportBatch} and
+ * {@link exportFooter}. A single export instantiates one of these via
+ * {@link createExportState}; nothing is shared across requests.
+ *
+ * - `hasEmitted` tracks whether any array element (STIX object / MISP
+ *   attribute) has been written yet, so the inter-element comma is decided by
+ *   *actual emission*, not batch position — a leading batch that produces no
+ *   objects (e.g. all non-observable types) must not leave a dangling comma.
+ * - `snortSid` is the Snort SID counter. Keeping it here (not module-global)
+ *   makes repeat exports deterministic and safe under concurrency.
+ * - `snortSkipped` collects non-network indicators so the footer can report
+ *   what was left out rather than silently dropping it.
+ */
+export type ExportState = {
+  hasEmitted: boolean;
+  snortSid: number;
+  snortSkipped: string[];
+};
+
+export function createExportState(): ExportState {
+  return { hasEmitted: false, snortSid: SNORT_SID_BASE, snortSkipped: [] };
+}
+
+export function exportBatch(
+  indicators: ExportIndicator[],
+  format: ExportFormat,
+  state: ExportState,
+): string {
+  if (indicators.length === 0) return "";
+
+  switch (format) {
+    case "csv": {
+      const rows = [];
+      for (const i of indicators) {
+        rows.push(
+          [
+            i.type,
+            i.value,
+            String(i.confidence),
+            i.severity,
+            i.tlp,
+            i.tags.join("|"),
+            i.source ?? "",
+            i.firstSeen.toISOString(),
+            i.lastSeen.toISOString(),
+          ]
+            .map(csvCell)
+            .join(","),
+        );
+      }
+      return rows.join("\r\n") + "\r\n";
+    }
+    case "zeek": {
+      const lines = [];
+      for (const i of indicators) {
+        const intelType = zeekIntelType(i.type);
+        const value = zeekIndicatorValue(i);
+        if (!intelType || /[\t\r\n]/.test(value)) continue;
+
+        const source = zeekField(i.source ?? "pulse-intelligence");
+        const desc = zeekField(
+          `${i.type} sev=${i.severity} conf=${i.confidence}` +
+            (i.tags.length ? ` tags=${i.tags.join(",")}` : ""),
+        );
+        lines.push([value, intelType, source, desc].join("\t"));
+      }
+      return lines.length ? lines.join("\n") + "\n" : "";
+    }
+    case "snort": {
+      const lines = [];
+      for (const i of indicators) {
+        const rule = snortRule(i, state.snortSid);
+        if (rule) {
+          lines.push(rule);
+          state.snortSid++;
+        } else {
+          state.snortSkipped.push(`${i.type} ${i.value}`);
+        }
+      }
+      return lines.length ? lines.join("\n") + "\n" : "";
+    }
+    case "stix": {
+      const objects = indicators
+        .map((i) => {
+          const pattern = stixPattern(i);
+          if (!pattern) return null;
+          return {
+            type: "indicator",
+            spec_version: "2.1",
+            id: stixId(i),
+            created: i.firstSeen.toISOString(),
+            modified: i.lastSeen.toISOString(),
+            valid_from: i.firstSeen.toISOString(),
+            ...(i.expiresAt ? { valid_until: i.expiresAt.toISOString() } : {}),
+            name: `${i.type} ${i.value}`,
+            pattern,
+            pattern_type: "stix",
+            confidence: i.confidence,
+            labels: i.tags.length ? i.tags : ["malicious-activity"],
+            object_marking_refs: [TLP_TO_STIX_MARKING[i.tlp]],
+          };
+        })
+        .filter((o): o is NonNullable<typeof o> => o !== null);
+      
+      let out = "";
+      for (const obj of objects) {
+        if (state.hasEmitted) out += ",\n";
+        out += JSON.stringify(obj, null, 2).split("\n").map(l => "    " + l).join("\n");
+        state.hasEmitted = true;
+      }
+      return out;
+    }
+    case "misp": {
+      const attributes = indicators.map((i) => ({
+        type: MISP_ATTRIBUTE_TYPE[i.type],
+        category: mispCategory(i.type),
+        value: i.value,
+        to_ids: i.confidence >= 50,
+        comment: i.source ? `source: ${i.source}` : "",
+        Tag: [
+          { name: `tlp:${i.tlp.toLowerCase().replace("_", "-")}` },
+          ...i.tags.map((t) => ({ name: t })),
+        ],
+      }));
+      
+      let out = "";
+      for (const attr of attributes) {
+        if (state.hasEmitted) out += ",\n";
+        out += JSON.stringify(attr, null, 2).split("\n").map(l => "      " + l).join("\n");
+        state.hasEmitted = true;
+      }
+      return out;
+    }
+  }
+}
+
+export function exportFooter(format: ExportFormat, state: ExportState): string {
+  switch (format) {
+    case "csv":
+    case "zeek":
+      return "";
+    case "snort": {
+      // Mirror the non-streaming exporter: list the non-network indicators that
+      // couldn't become rules so the operator knows what was left out. Zeek
+      // deliberately omits this (its reader parses trailing `#` lines as data);
+      // Snort treats `#` as a comment anywhere, so a trailing block is safe.
+      if (state.snortSkipped.length === 0) return "";
+      const parts = [
+        "",
+        `# ${state.snortSkipped.length} non-network indicator(s) not expressible as rules:`,
+        ...state.snortSkipped.map((s) => `#   ${s}`),
+      ];
+      return parts.join("\n") + "\n";
+    }
+    case "stix":
+      return "\n  ]\n}";
+    case "misp":
+      return "\n    ]\n  }\n}";
+  }
+}
