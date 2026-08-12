@@ -177,9 +177,11 @@ describe("parseBulk", () => {
   });
 
   it("does not split a URL containing a comma", () => {
-    const result = parseBulk("https://evil.com/a");
+    const result = parseBulk("https://evil.com/a,b");
     expect(result.parsed).toHaveLength(1);
     expect(result.parsed[0].type).toBe("URL");
+    expect(result.parsed[0].value).toBe("https://evil.com/a,b");
+    expect(result.unparsed).toHaveLength(0);
   });
 
   it("surfaces unparsable lines instead of dropping them", () => {

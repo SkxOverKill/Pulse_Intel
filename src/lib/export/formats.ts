@@ -181,7 +181,7 @@ const TLP_TO_STIX_MARKING: Record<Tlp, string> = {
   CLEAR: "marking-definition--613f2e26-407d-48c7-9eca-b8e91df99dc9",
   GREEN: "marking-definition--34098fce-860f-48ae-8e50-ebd3cc5e41da",
   AMBER: "marking-definition--f88d31f6-486f-44da-b317-01333bde0b82",
-  AMBER_STRICT: "marking-definition--f88d31f6-486f-44da-b317-01333bde0b82",
+  AMBER_STRICT: "marking-definition--939a9414-2ddd-4d32-a0cd-375ea402b003",
   RED: "marking-definition--5e57c739-391a-4eb3-b6be-7d15ca92d5ed",
 };
 

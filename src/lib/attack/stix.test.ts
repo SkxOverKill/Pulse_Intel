@@ -153,6 +153,26 @@ describe("attackId", () => {
     expect(attackId(PARENT)).toBe("T1053");
   });
 
+  it("reads the mitre-mobile-attack external reference", () => {
+    const mobileTechnique: StixObject = {
+      id: "attack-pattern--mobile",
+      type: "attack-pattern",
+      name: "Hijack Privileged Context",
+      external_references: [{ source_name: "mitre-mobile-attack", external_id: "T1420" }],
+    };
+    expect(attackId(mobileTechnique)).toBe("T1420");
+  });
+
+  it("reads the mitre-ics-attack external reference", () => {
+    const icsTechnique: StixObject = {
+      id: "attack-pattern--ics",
+      type: "attack-pattern",
+      name: "Unauthorized Command Message",
+      external_references: [{ source_name: "mitre-ics-attack", external_id: "T0855" }],
+    };
+    expect(attackId(icsTechnique)).toBe("T0855");
+  });
+
   it("returns null when there is no ATT&CK reference", () => {
     expect(attackId({ id: "x", type: "attack-pattern" })).toBeNull();
   });
@@ -182,6 +202,34 @@ describe("parseBundle", () => {
   it("ignores non-ATT&CK kill chains", () => {
     const child = parsed.techniques.find((t) => t.attackId === "T1053.005")!;
     expect(child.tactics).not.toContain("exploitation");
+  });
+
+  it("keeps tactics from the mobile and ICS kill chains", () => {
+    const bundle: StixBundle = {
+      type: "bundle",
+      objects: [
+        {
+          id: "attack-pattern--m1",
+          type: "attack-pattern",
+          name: "Hijack Privileged Context",
+          external_references: [{ source_name: "mitre-mobile-attack", external_id: "T1420" }],
+          kill_chain_phases: [{ kill_chain_name: "mitre-mobile-attack", phase_name: "privilege-escalation" }],
+        },
+        {
+          id: "attack-pattern--i1",
+          type: "attack-pattern",
+          name: "Unauthorized Command Message",
+          external_references: [{ source_name: "mitre-ics-attack", external_id: "T0855" }],
+          kill_chain_phases: [{ kill_chain_name: "mitre-ics-attack", phase_name: "execution" }],
+        },
+      ],
+    };
+    const mobile = parseBundle(bundle).techniques.find((t) => t.attackId === "T1420")!;
+    expect(mobile).toBeDefined();
+    expect(mobile.tactics).toEqual(["privilege-escalation"]);
+    const ics = parseBundle(bundle).techniques.find((t) => t.attackId === "T0855")!;
+    expect(ics).toBeDefined();
+    expect(ics.tactics).toEqual(["execution"]);
   });
 
   it("drops revoked techniques but keeps deprecated ones flagged", () => {
