@@ -1,6 +1,8 @@
 import type { CurrentUser } from "@/lib/auth/dal";
 import { CommandPalette } from "@/components/nav/command-palette";
 import { logout } from "@/app/(auth)/actions";
+import Link from "next/link";
+import { KeyRound } from "lucide-react";
 
 const ROLE_LABELS: Record<CurrentUser["role"], string> = {
   ADMIN: "Admin",
@@ -27,14 +29,23 @@ export function TopBar({ user }: { user: CurrentUser }) {
             Public demo
           </span>
         ) : (
-          <form action={logout}>
-            <button
-              type="submit"
-              className="rounded border border-line bg-surface-2 px-2 py-1 text-[11px] text-ink-faint transition-colors hover:border-brand/40 hover:text-ink"
+          <>
+            <Link
+              href="/account/password"
+              title="Change password"
+              className="grid size-7 place-items-center rounded-md border border-line bg-surface-2 text-ink-faint transition-colors hover:border-brand/40 hover:text-ink"
             >
-              Sign out
-            </button>
-          </form>
+              <KeyRound className="size-3.5" />
+            </Link>
+            <form action={logout}>
+              <button
+                type="submit"
+                className="rounded border border-line bg-surface-2 px-2 py-1 text-[11px] text-ink-faint transition-colors hover:border-brand/40 hover:text-ink"
+              >
+                Sign out
+              </button>
+            </form>
+          </>
         )}
         <div className="text-right leading-tight">
           <p className="text-sm text-ink">{user.name}</p>

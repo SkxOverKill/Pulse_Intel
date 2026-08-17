@@ -115,10 +115,12 @@ this way as short-lived.
 
 **Known risk, accepted, not fixed:** the seed admin/analyst/viewer passwords are still the
 defaults printed in this file (§ below) and this repo's own commit history/chat — anyone who
-has seen them can log in as ADMIN through the public link. There is no self-service
-change-password UI yet. If this stops being "show a few friends" and becomes anything longer-
-lived, rotate `SEED_PASSWORD` and manually update the three `User.passwordHash` rows (re-running
-`db:seed` won't touch an existing user's password — see the comment in `prisma/seed.ts`).
+has seen them can log in as ADMIN through the public link. Rotate them at **Settings → the
+key icon in the topbar → Change password** (self-service, any signed-in user, no admin
+needed). If this stops being "show a few friends" and becomes anything longer-lived,
+also rotate `SEED_PASSWORD` and manually update the three `User.passwordHash` rows
+(re-running `db:seed` won't touch an existing user's password — see the comment in
+`prisma/seed.ts`).
 
 ---
 

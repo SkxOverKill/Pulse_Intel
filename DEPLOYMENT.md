@@ -193,6 +193,6 @@ npm run verify:enrichment -- --live    # proves API keys + rate limiter work
 npm run build
 ```
 
-Sign in, change the seed passwords (`HANDOVER.md` §2.4 — there's no
-self-service change-password UI yet), and confirm the worker log shows
+Sign in, change the seed passwords (topbar key icon → Change password — self-service for
+any signed-in user; see `HANDOVER.md` §2.4), and confirm the worker log shows
 `worker ready — enrichment + feeds + hunts + reports`.
