@@ -19,7 +19,9 @@ All notable changes to Pulse Intelligence will be documented here.
   TypeScript entrypoint via `tsx`) instead of the nonexistent
   `node dist/worker.js`; app gets a `/api/health` healthcheck; the unused
   `CREDENTIAL_ENC_KEY` requirement was dropped.
-- CI builds the Docker image and smoke-tests the app container boots.
+- CI builds the Docker image and smoke-tests the **full compose stack** — app
+  answers `/api/health`, worker reports ready — against real Postgres + Redis
+  service containers.
 
 ---
 

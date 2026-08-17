@@ -121,8 +121,9 @@ npm audit --audit-level=moderate
 npm run build
 ```
 
-CI also builds the Docker image and smoke-tests that the app container boots
-(`/api/health` responds).
+CI also builds the Docker image and brings up the full `docker compose --profile full`
+stack against real Postgres + Redis, asserting the app answers `/api/health` and the
+worker reports ready.
 
 Database-backed verification scripts:
 

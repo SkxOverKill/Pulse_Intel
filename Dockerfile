@@ -18,6 +18,11 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ARG DATABASE_URL=postgresql://postgres:postgres@localhost:5432/pulse
 ENV DATABASE_URL=$DATABASE_URL
 
+# OpenSSL is required by Prisma's schema/migration engine — node:24-slim omits
+# it, and prisma warns (then degrades) without it.
+RUN apt-get update && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
+
 # prisma.config.ts + prisma/ must exist before `npm ci` — the postinstall hook
 # runs `prisma generate`, which reads the schema and output path from them.
 COPY package.json package-lock.json prisma.config.ts tsconfig.json ./
@@ -37,6 +42,9 @@ FROM node:24-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/package.json /app/package-lock.json /app/prisma.config.ts /app/tsconfig.json ./
 COPY --from=build /app/prisma ./prisma
