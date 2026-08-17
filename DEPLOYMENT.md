@@ -1,10 +1,10 @@
 # Deploying Pulse Intelligence — new machine / new host
 
 Short answer: **this project is deployment-ready as a directly-hosted Node app**
-(what's actually running right now, on this RDP box). It is **not yet
-container-ready** — `docker-compose.yml` has a `full` profile that expects a
-`Dockerfile`, and none exists yet. Use the Node path below unless you want to
-build a Dockerfile first (say so and it can be added).
+(what's actually running right now, on this RDP box). For a containerized
+deploy, a multi-stage `Dockerfile` and a `docker compose --profile full up -d`
+path exist — see §0/§3.5/§4.1 below. On a host without Docker, use the Node
+path; with Docker, either works.
 
 This file is the "get it live on a brand new machine" checklist. For
 day-to-day commands and architecture notes, see [`HANDOVER.md`](HANDOVER.md)
@@ -38,7 +38,7 @@ scripts, git history — is included.
 | Requirement | Notes |
 |---|---|
 | **Node.js 20.9+** | This project was built and run on Node 24. |
-| **PostgreSQL 17** | Native install, or `docker compose up -d postgres` (see `docker-compose.yml` — the `postgres`/`redis` services work standalone without the missing Dockerfile). |
+| **PostgreSQL 17** | Native install, or `docker compose up -d postgres` (the `postgres`/`redis` services run standalone without the app). |
 | **Redis-compatible server** | Memurai on Windows, real Redis on Linux/Mac, or `docker compose up -d redis`. |
 | `npm` | Ships with Node. |
 
@@ -117,6 +117,42 @@ of a bare terminal:
   `pm2 startup` so they survive a reboot.
 - Whatever the RDP-specific approach was (nohup + manual restart) works but
   does **not** survive a reboot — fine for iterating, not for a real deployment.
+
+### 4.1 Containerized (Docker) path
+
+Same two processes, same image. The `full` compose profile builds the app and
+worker from the multi-stage `Dockerfile` and brings up PostgreSQL + Redis
+alongside:
+
+```bash
+docker compose up -d postgres redis          # infra only (no app)
+docker compose --profile full up -d --build  # everything
+```
+
+The image runs `prisma migrate deploy` on every container start (via
+`docker-entrypoint.sh`), so first boot applies `prisma/migrations/` automatically
+— no manual `npm run db:migrate`. Still run the data-loading steps once after the
+stack is healthy (`docker compose --profile full exec app npm run db:seed`, then
+`attack:sync -- --all`, `feeds:install`, and `cve:catchup -- --days 90` as in §3).
+Secrets come from the host `.env` file or the compose `environment` block —
+`SESSION_SECRET` is required; the enrichment provider keys are optional.
+
+To run a one-off maintenance job inside the running container:
+
+```bash
+docker compose --profile full exec app npm run cve:catchup -- --days 90
+docker compose --profile full exec app npm run verify:enrichment -- --live
+```
+
+Notes:
+
+- The `full` profile is the whole stack on one host — for a split deploy, run the
+  same image twice with different `command:` values (`npm run start` vs
+  `npm run worker`), which is exactly what the profile does.
+- The worker entrypoint is TypeScript and runs via `tsx` (a devDependency shipped
+  in the image), so the container is self-contained for both processes.
+- `CREDENTIAL_ENC_KEY` is not required by the containerized path — it is reserved
+  for the future Settings UI and is not read by any code yet.
 
 ---
 

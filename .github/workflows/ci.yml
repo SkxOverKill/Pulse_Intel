@@ -65,3 +65,41 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: verify
+    env:
+      SESSION_SECRET: ci-only-not-a-real-secret
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Build and start the full stack
+        run: docker compose --profile full up -d --build
+
+      - name: Wait for the app to answer /api/health
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3000/api/health >/dev/null 2>&1; then
+              echo "app is up"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "app did not become healthy"
+          docker compose logs app
+          exit 1
+
+      - name: Confirm the worker is running
+        run: |
+          for i in $(seq 1 20); do
+            if docker compose logs worker 2>/dev/null | grep -q "worker ready"; then
+              echo "worker is ready"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "worker did not become ready"
+          docker compose logs worker
+          exit 1

@@ -47,8 +47,15 @@ services:
       DATABASE_URL: postgres://pulse:${POSTGRES_PASSWORD:-pulse_dev_password}@postgres:5432/pulse
       REDIS_URL: redis://redis:6379
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
-      CREDENTIAL_ENC_KEY: ${CREDENTIAL_ENC_KEY:?set CREDENTIAL_ENC_KEY}
       NODE_ENV: production
+      # Optional enrichment providers — forwarded from the host .env when set.
+      VIRUSTOTAL_API_KEY: ${VIRUSTOTAL_API_KEY:-}
+      ABUSEIPDB_API_KEY: ${ABUSEIPDB_API_KEY:-}
+      ABUSEIPDB_API_KEYS: ${ABUSEIPDB_API_KEYS:-}
+      OTX_API_KEY: ${OTX_API_KEY:-}
+      GREYNOISE_API_KEY: ${GREYNOISE_API_KEY:-}
+      SHODAN_API_KEY: ${SHODAN_API_KEY:-}
+      NVD_API_KEY: ${NVD_API_KEY:-}
     ports:
       - "3000:3000"
     depends_on:
@@ -56,20 +63,36 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
 
-  # Same image, different entrypoint — feed ingestion, enrichment queue, ATT&CK
-  # sync. Shares src/lib with the app so domain logic is written once.
+  # Same image, different command — feed ingestion, enrichment queue, ATT&CK
+  # sync. Runs the TypeScript worker entrypoint directly (`src/worker.ts` is
+  # executed by tsx, which is a devDependency that ships in the image). Shares
+  # src/lib with the app so domain logic is written once.
   worker:
     profiles: ["full"]
     build: .
     restart: unless-stopped
-    command: ["node", "dist/worker.js"]
+    command: ["npm", "run", "worker"]
     environment:
       DATABASE_URL: postgres://pulse:${POSTGRES_PASSWORD:-pulse_dev_password}@postgres:5432/pulse
       REDIS_URL: redis://redis:6379
-      CREDENTIAL_ENC_KEY: ${CREDENTIAL_ENC_KEY:?set CREDENTIAL_ENC_KEY}
       NODE_ENV: production
+      VIRUSTOTAL_API_KEY: ${VIRUSTOTAL_API_KEY:-}
+      ABUSEIPDB_API_KEY: ${ABUSEIPDB_API_KEY:-}
+      ABUSEIPDB_API_KEYS: ${ABUSEIPDB_API_KEYS:-}
+      OTX_API_KEY: ${OTX_API_KEY:-}
+      GREYNOISE_API_KEY: ${GREYNOISE_API_KEY:-}
+      SHODAN_API_KEY: ${SHODAN_API_KEY:-}
+      NVD_API_KEY: ${NVD_API_KEY:-}
     depends_on:
+      app:
+        condition: service_started
       postgres:
         condition: service_healthy
       redis:
