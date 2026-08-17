@@ -2,6 +2,27 @@
 
 All notable changes to Pulse Intelligence will be documented here.
 
+## Unreleased
+
+### Added
+
+- **Containerized deployment** — a multi-stage `Dockerfile`, `docker-entrypoint.sh`
+  (auto-applies `prisma migrate deploy` on boot), and a `.dockerignore`. The
+  `docker compose --profile full up -d --build` profile now runs app + worker +
+  Postgres + Redis together. The image ships the full `node_modules` so
+  operator scripts (`attack:sync`, `cve:catchup`, `db:seed*`, verify scripts)
+  run inside the container.
+
+### Changed
+
+- `docker-compose.yml` worker service now runs `npm run worker` (the
+  TypeScript entrypoint via `tsx`) instead of the nonexistent
+  `node dist/worker.js`; app gets a `/api/health` healthcheck; the unused
+  `CREDENTIAL_ENC_KEY` requirement was dropped.
+- CI builds the Docker image and smoke-tests the app container boots.
+
+---
+
 ## v0.2.0 - 2026-08-11
 
 ### Added

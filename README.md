@@ -76,8 +76,9 @@ Set `SEED_PASSWORD` before `npm run db:seed` for anything beyond local developme
 - PostgreSQL 17 or compatible PostgreSQL
 - Redis-compatible server for workers, enrichment queues, feed schedules, hunts, and reports
 
-For Windows without Docker, native PostgreSQL plus Memurai works well. Docker Compose includes
-Postgres and Redis services, but the app itself is currently intended to run as a Node process.
+For Windows without Docker, native PostgreSQL plus Memurai works well. Docker Compose
+includes Postgres and Redis services; the `full` profile also builds and runs the app
+and worker from the `Dockerfile`. See [`DEPLOYMENT.md`](DEPLOYMENT.md) for both paths.
 
 ## Environment
 
@@ -119,6 +120,9 @@ npm run test
 npm audit --audit-level=moderate
 npm run build
 ```
+
+CI also builds the Docker image and smoke-tests that the app container boots
+(`/api/health` responds).
 
 Database-backed verification scripts:
 

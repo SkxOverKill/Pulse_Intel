@@ -1,0 +1,6 @@
+# Shell scripts and Docker artifacts run on Linux hosts ??? they must never be
+# checked out with CRLF, or the container entrypoint fails with /bin/sh errors.
+docker-entrypoint.sh text eol=lf
+*.sh text eol=lf
+Dockerfile text eol=lf
+.dockerignore text eol=lf

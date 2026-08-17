@@ -65,3 +65,34 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: verify
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Build image
+        run: docker build -t pulse-intel:ci .
+
+      - name: Smoke-test the app container boots
+        run: |
+          docker run --rm -d --name pulse-ci \
+            -e NODE_ENV=production \
+            -e DATABASE_URL=postgresql://ci:ci@localhost:5432/pulse \
+            -e REDIS_URL=redis://localhost:6379 \
+            -e SESSION_SECRET=ci-only-not-a-real-secret \
+            -p 3000:3000 pulse-intel:ci
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/api/health >/dev/null 2>&1; then
+              echo "app is up"
+              docker stop pulse-ci
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "app did not become healthy"
+          docker logs pulse-ci || true
+          docker stop pulse-ci || true
+          exit 1
