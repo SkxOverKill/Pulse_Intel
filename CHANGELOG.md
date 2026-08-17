@@ -6,6 +6,12 @@ All notable changes to Pulse Intelligence will be documented here.
 
 ### Added
 
+- **Self-service password change** — any signed-in user (not just admins) can
+  rotate their password from the key icon in the topbar. Current password must
+  verify (a hijacked session can't repoint an account), the current session stays
+  alive, and every other session is revoked. Argon2id policy: 12–256 chars,
+  confirmation match. Disabled in demo mode. `/account/password`.
+
 - **Containerized deployment** — a multi-stage `Dockerfile`, `docker-entrypoint.sh`
   (auto-applies `prisma migrate deploy` on boot), and a `.dockerignore`. The
   `docker compose --profile full up -d --build` profile now runs app + worker +
