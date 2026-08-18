@@ -108,11 +108,31 @@ export type ParsedGroupMapping = {
   techniqueAttackId: string;
 };
 
+export type ParsedSoftware = {
+  /** "malware" for STIX `malware` objects, "tool" for `tool` and `x-mitre-tool`. */
+  kind: "malware" | "tool";
+  /** ATT&CK software id, e.g. "S0154". */
+  attackId: string;
+  name: string;
+  aliases: string[];
+  platforms: string[];
+  description: string | null;
+};
+
+export type ParsedGroupSoftwareMapping = {
+  /** ATT&CK group id, e.g. "G0016". */
+  groupId: string;
+  softwareAttackId: string;
+  kind: "malware" | "tool";
+};
+
 export type ParsedBundle = {
   version: string;
   tactics: ParsedTactic[];
   techniques: ParsedTechnique[];
   groupMappings: ParsedGroupMapping[];
+  software: ParsedSoftware[];
+  softwareMappings: ParsedGroupSoftwareMapping[];
 };
 
 export function parseBundle(bundle: StixBundle): ParsedBundle {
@@ -250,5 +270,55 @@ export function parseBundle(bundle: StixBundle): ParsedBundle {
     });
   }
 
-  return { version, tactics, techniques, groupMappings };
+  // --- Software -----------------------------------------------------------
+  // ATT&CK's `malware` and `tool` objects. `x-mitre-tool` still appears in the
+  // archives of older releases; treat it as a tool so those bundles re-sync.
+  const softwareIdToKind = new Map<string, "malware" | "tool">();
+  const software: ParsedSoftware[] = [];
+
+  for (const o of objects) {
+    const kind: "malware" | "tool" | null =
+      o.type === "malware" ? "malware"
+      : o.type === "tool" || o.type === "x-mitre-tool" ? "tool"
+      : null;
+    if (!kind) continue;
+    if (o.revoked) continue; // Replaced object — carrying it forward is stale.
+    const id = attackId(o);
+    if (!id) continue;
+
+    softwareIdToKind.set(o.id, kind);
+    software.push({
+      kind,
+      attackId: id,
+      name: o.name ?? id,
+      aliases: o.x_mitre_aliases ?? [],
+      platforms: o.x_mitre_platforms ?? [],
+      description: o.description ?? null,
+    });
+  }
+
+  // --- Group -> software mappings ----------------------------------------
+  // Same `uses` relationship, but the target is software rather than a
+  // technique. Kept apart from groupMappings because the two ingest into
+  // different tables downstream.
+  const softwareMappings: ParsedGroupSoftwareMapping[] = [];
+
+  for (const rel of objects) {
+    if (rel.type !== "relationship" || rel.relationship_type !== "uses") continue;
+    if (!rel.source_ref || !rel.target_ref) continue;
+    const group = byId.get(rel.source_ref);
+    if (group?.type !== "intrusion-set" || group.revoked) continue;
+
+    const groupId = attackId(group);
+    const kind = softwareIdToKind.get(rel.target_ref);
+    if (!groupId || !kind) continue;
+
+    const target = byId.get(rel.target_ref);
+    const softwareAttackId = target && attackId(target);
+    if (!softwareAttackId) continue;
+
+    softwareMappings.push({ groupId, softwareAttackId, kind });
+  }
+
+  return { version, tactics, techniques, groupMappings, software, softwareMappings };
 }

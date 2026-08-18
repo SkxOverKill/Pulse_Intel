@@ -161,14 +161,7 @@ export async function search(rawQuery: string): Promise<SearchHit[]> {
       id: r.id,
       title: r.title,
       subtitle: r.subtitle,
-      // Malware and Tool detail pages don't exist yet (sidebar marks them
-      // "Soon"), so a hit would 404. Land on a search for the name instead —
-      // a working page, and it surfaces related actors/CVEs. Replace with the
-      // real route when `/malware` ships.
-      href:
-        type === "malware" || type === "tool"
-          ? `/search?q=${encodeURIComponent(r.title)}`
-          : `${path}/${r.id}`,
+      href: `${path}/${r.id}`,
       rank: Number(r.rank) || 0,
     }));
 
@@ -178,8 +171,10 @@ export async function search(rawQuery: string): Promise<SearchHit[]> {
     ...map(indicators, "indicator", "/indicators"),
     ...map(reports, "report", "/reports"),
     ...map(techniques, "technique", "/attack"),
+    // Malware and tools share the `/malware/:id` detail route — a tool hit
+    // resolves via the same table lookup the page itself does.
     ...map(malware, "malware", "/malware"),
-    ...map(tools, "tool", "/malware/tools"),
+    ...map(tools, "tool", "/malware"),
     ...map(vulns, "vulnerability", "/vulnerabilities"),
   ].sort((a, b) => b.rank - a.rank);
 }

@@ -40,6 +40,12 @@ function report(r: SyncReport) {
   console.log(
     `    group mappings       ${r.groupMappingsApplied} applied of ${r.groupMappingsAvailable} available`,
   );
+  console.log(
+    `    software             ${r.softwareCreated} created, ${r.softwareUpdated} updated of ${r.softwareAvailable} available`,
+  );
+  console.log(
+    `    group software maps  ${r.softwareMappingsApplied} applied of ${r.softwareMappingsAvailable} available`,
+  );
 }
 
 async function main() {
