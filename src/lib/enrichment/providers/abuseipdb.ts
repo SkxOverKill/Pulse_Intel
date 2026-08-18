@@ -1,3 +1,4 @@
+import { getSecretList } from "@/lib/enrichment/secrets";
 import {
   ProviderError,
   ProviderRateLimitError,
@@ -17,27 +18,21 @@ import {
  * reputation genuinely changes day to day.
  *
  * Multi-key rotation: `ABUSEIPDB_API_KEYS` is an optional comma-separated list
- * of additional free-tier keys. Each key has its own independent 1,000/day cap
+ * of additional free-tier keys — or one comma-separated value set in Settings.
+ * Each key has its own independent 1,000/day cap
  * on AbuseIPDB's side, so N keys give roughly N*1,000/day of real quota — the
  * shared limiter's `perDay` below is sized to match, and `lookup()` rotates to
  * the next key whenever the current one 429s instead of giving up immediately.
  * Falls back to the single `ABUSEIPDB_API_KEY` when the list isn't set.
  */
 
-function loadKeys(): string[] {
-  const list = process.env.ABUSEIPDB_API_KEYS;
-  if (list) {
-    const keys = list
-      .split(",")
-      .map((k) => k.trim())
-      .filter(Boolean);
-    if (keys.length > 0) return keys;
-  }
-  const single = process.env.ABUSEIPDB_API_KEY;
-  return single ? [single] : [];
-}
+// Resolved per call (not at module load) so a key set via the Settings UI
+// takes effect immediately — the DB row, the ABUSEIPDB_API_KEYS comma list,
+// and the single ABUSEIPDB_API_KEY env var all feed the same comma-split path.
 
-const KEYS = loadKeys();
+function currentKeys(): string[] {
+  return getSecretList("abuseipdb");
+}
 
 // Round-robins across keys (not always starting from key 0) so load spreads
 // evenly instead of hammering the first key until it dies every day.
@@ -46,7 +41,11 @@ let nextKeyIndex = 0;
 export const abuseIpDbProvider: EnrichmentProvider = {
   name: "abuseipdb",
   label: "AbuseIPDB",
-  quota: { perDay: 1000 * Math.max(1, KEYS.length) },
+  // Getter — the daily quota is sized to the *current* key count, so adding a
+  // key in Settings raises capacity without a restart.
+  get quota() {
+    return { perDay: 1000 * Math.max(1, currentKeys().length) };
+  },
   ttlMs: 24 * 60 * 60 * 1000,
 
   supports(type) {
@@ -54,11 +53,12 @@ export const abuseIpDbProvider: EnrichmentProvider = {
   },
 
   isConfigured() {
-    return KEYS.length > 0;
+    return currentKeys().length > 0;
   },
 
   async lookup(value): Promise<LookupResult> {
-    if (KEYS.length === 0) {
+    const keys = currentKeys();
+    if (keys.length === 0) {
       throw new ProviderError("AbuseIPDB is not configured");
     }
 
@@ -70,8 +70,8 @@ export const abuseIpDbProvider: EnrichmentProvider = {
 
     // Try every key at most once per lookup — a key exhausted for the day
     // should fail fast to the next one, not retry itself.
-    for (let attempt = 0; attempt < KEYS.length; attempt++) {
-      const key = KEYS[nextKeyIndex % KEYS.length];
+    for (let attempt = 0; attempt < keys.length; attempt++) {
+      const key = keys[nextKeyIndex % keys.length]!;
       nextKeyIndex++;
 
       const res = await providerFetch(url.toString(), {

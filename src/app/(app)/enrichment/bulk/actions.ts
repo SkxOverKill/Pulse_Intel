@@ -7,6 +7,7 @@ import { fail, ok, withAction, type ActionResult } from "@/lib/actions";
 import { parseIndicator } from "@/lib/ioc/normalize";
 import { ingestText } from "@/lib/ioc/ingest";
 import { enrichOne } from "@/lib/enrichment/enrich";
+import { loadCredentialCache } from "@/lib/enrichment/secrets";
 import { PROVIDERS } from "@/lib/enrichment/registry";
 import { extractDetails, type DetailValue } from "@/lib/enrichment/details";
 
@@ -55,6 +56,8 @@ export async function bulkLookup(
   const result = await withAction(
     { role: "ANALYST", schema: BulkLookupSchema, formData },
     async (input, user) => {
+      await loadCredentialCache();
+
       const lines = Array.from(
         new Set(
           input.values

@@ -429,10 +429,13 @@ but nothing applies it yet), `Indicator` partitioning if it passes ~10M rows,
 backup/restore, rate limits on the public API, security review.
 
 **Also outstanding:**
-- Settings UI for provider API keys — the `CREDENTIAL_ENC_KEY` env var and the encrypted
-  storage it implies are declared but unused; keys currently come from `.env` only.
-- `/malware`, `/settings`, `/audit` are still "Soon" in the sidebar. (`/hunting` is now
-  live.)
+- Settings for provider API keys shipped (Phase 8.5): keys are stored encrypted
+  in a `ProviderCredential` table (AES-256-GCM under `CREDENTIAL_ENC_KEY`) and
+  served through the sync cache in `src/lib/enrichment/secrets.ts`. A DB-set
+  key wins over the same key in `.env`; the worker re-hydrates the cache on its
+  5-minute schedule sync. `nvd` keys for the CVE/KEV feeds go through the same
+  resolver. If `CREDENTIAL_ENC_KEY` is rotated, previously stored keys stop
+  decrypting — clear and re-enter them from Settings.
 - The RDP box has no `winget` (Win10 LTSC). Node 24 / PostgreSQL 17 / Memurai were
   installed from direct MSI/EXE downloads. `node`/`npm`/`psql` are not on the bash PATH by
   default — prepend `/c/Program Files/nodejs` and `/c/Program Files/PostgreSQL/17/bin`.

@@ -6,6 +6,15 @@ All notable changes to Pulse Intelligence will be documented here.
 
 ### Added
 
+- **Provider API keys in Settings** — admins can now set, rotate, and clear
+  enrichment/feed provider keys from `/settings` instead of `.env`. Keys are
+  encrypted at rest (AES-256-GCM under `CREDENTIAL_ENC_KEY`) in a new
+  `ProviderCredential` table, and a sync in-memory cache serves them to the
+  app and worker with DB-over-env precedence. Workers re-hydrate the cache on
+  their 5-minute schedule sync, so UI edits apply without a restart.
+  (VirusTotal, OTX, AbuseIPDB — including the multi-key comma list — Shodan,
+  GreyNoise, NVD.)
+
 - **Self-service password change** — any signed-in user (not just admins) can
   rotate their password from the key icon in the topbar. Current password must
   verify (a hijacked session can't repoint an account), the current session stays
@@ -23,8 +32,9 @@ All notable changes to Pulse Intelligence will be documented here.
 
 - `docker-compose.yml` worker service now runs `npm run worker` (the
   TypeScript entrypoint via `tsx`) instead of the nonexistent
-  `node dist/worker.js`; app gets a `/api/health` healthcheck; the unused
-  `CREDENTIAL_ENC_KEY` requirement was dropped.
+  `node dist/worker.js`; app gets a `/api/health` healthcheck; the container
+  no longer requires `CREDENTIAL_ENC_KEY` (a fresh install can add provider
+  keys through the UI after boot).
 - CI builds the Docker image and smoke-tests the **full compose stack** — app
   answers `/api/health`, worker reports ready — against real Postgres + Redis
   service containers.

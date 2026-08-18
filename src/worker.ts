@@ -25,6 +25,7 @@ import {
   type ReportJob,
 } from "@/lib/queue/queues";
 import { enrichAll, enrichOne, recomputeIndicatorConfidence } from "@/lib/enrichment/enrich";
+import { loadCredentialCache } from "@/lib/enrichment/secrets";
 import { runFeed } from "@/lib/feeds/run";
 import { runHunt } from "@/lib/hunting/run";
 import { runScheduledReport } from "@/lib/reports/run";
@@ -274,6 +275,9 @@ process.on("SIGTERM", () => void shutdown("SIGTERM"));
 
 async function main() {
   log("Pulse worker starting");
+  // Decrypt DB-stored provider keys into the process cache before any job can
+  // run — providers check isConfigured() synchronously.
+  await loadCredentialCache();
   await syncSchedules();
   await syncHuntSchedules();
   await syncReportSchedules();
@@ -288,6 +292,8 @@ async function main() {
     void syncSchedules().catch((e) => log("schedule sync failed", e));
     void syncHuntSchedules().catch((e) => log("hunt schedule sync failed", e));
     void syncReportSchedules().catch((e) => log("report schedule sync failed", e));
+    // Same for keys added via Settings — no restart required.
+    void loadCredentialCache().catch((e) => log("credential sync failed", e));
   }, 5 * 60_000);
 
   log("worker ready — enrichment + feeds + hunts + reports");

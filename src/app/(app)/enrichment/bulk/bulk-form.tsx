@@ -143,7 +143,7 @@ export function BulkLookupForm({ providers }: { providers: ProviderOption[] }) {
             </div>
             {providers.length === 0 ? (
               <p className="mt-1 text-xs text-danger">
-                No providers are configured — add ABUSEIPDB_API_KEY / VIRUSTOTAL_API_KEY in .env.
+                No providers are configured — set keys in Settings, or add ABUSEIPDB_API_KEY / VIRUSTOTAL_API_KEY to .env.
               </p>
             ) : null}
           </div>

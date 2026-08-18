@@ -1,4 +1,5 @@
 import type { IndicatorType } from "@/generated/prisma/enums";
+import { getSecret } from "@/lib/enrichment/secrets";
 import {
   ProviderError,
   ProviderRateLimitError,
@@ -29,8 +30,6 @@ import {
  * org, ASN, geo, and historical scan data. Without a key, InternetDB is used.
  */
 
-const KEY = process.env.SHODAN_API_KEY;
-
 type ShodanInternetDb = {
   ip: string;
   ports:      number[];
@@ -60,9 +59,9 @@ type ShodanFullHost = {
   }>;
 };
 
-function buildUrl(ip: string): string {
-  if (KEY) {
-    return `https://api.shodan.io/shodan/host/${encodeURIComponent(ip)}?key=${KEY}`;
+function buildUrl(ip: string, key?: string): string {
+  if (key) {
+    return `https://api.shodan.io/shodan/host/${encodeURIComponent(ip)}?key=${key}`;
   }
   return `https://internetdb.shodan.io/${encodeURIComponent(ip)}`;
 }
@@ -99,7 +98,9 @@ export const shodanProvider: EnrichmentProvider = {
   label: "Shodan",
   // InternetDB has no documented rate limit; being polite at 30/min.
   // Full API: free tier allows 1 req/s.
-  quota: { perMinute: KEY ? 60 : 30 },
+  get quota() {
+    return { perMinute: getSecret("shodan") ? 60 : 30 };
+  },
   ttlMs: 48 * 60 * 60 * 1000, // 48h — port data changes slowly
 
   supports(type: IndicatorType) {
@@ -112,7 +113,8 @@ export const shodanProvider: EnrichmentProvider = {
   },
 
   async lookup(value): Promise<LookupResult> {
-    const url = buildUrl(value);
+    const key = getSecret("shodan");
+    const url = buildUrl(value, key);
     const res = await providerFetch(url);
 
     if (res.status === 404) {
@@ -129,7 +131,7 @@ export const shodanProvider: EnrichmentProvider = {
       throw new ProviderError(`Shodan HTTP ${res.status}`, res.status);
     }
 
-    if (KEY) {
+    if (key) {
       const body = (await res.json()) as ShodanFullHost;
       const score = scoreFromFullHost(body);
       return { verdict: verdictFromScore(score), score, raw: body };

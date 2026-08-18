@@ -2,6 +2,7 @@ import { Activity, AlertTriangle, ListChecks, Search } from "lucide-react";
 import { db } from "@/lib/db";
 import { hasRole, requireUser } from "@/lib/auth/dal";
 import { configuredProviders } from "@/lib/enrichment/registry";
+import { loadCredentialCache } from "@/lib/enrichment/secrets";
 import { estimateDrainMs, getQuotaStatus } from "@/lib/enrichment/limiter";
 import { getQueueStats } from "@/lib/queue/queues";
 import { Card, CardHeader, EmptyState } from "@/components/ui/primitives";
@@ -24,6 +25,10 @@ function humanizeMs(ms: number): string {
 export default async function EnrichmentPage() {
   const user = await requireUser();
   const isAdmin = hasRole(user, "ADMIN");
+
+  // DB-stored keys only reach isConfigured() through this process cache, so
+  // hydrate before deciding which providers are live.
+  await loadCredentialCache();
 
   const providers = configuredProviders();
 
@@ -131,7 +136,7 @@ export default async function EnrichmentPage() {
         {quotas.length === 0 ? (
           <EmptyState
             title="No providers configured"
-            description="Set VIRUSTOTAL_API_KEY, ABUSEIPDB_API_KEY or OTX_API_KEY in .env."
+            description="Set keys in Settings, or via VIRUSTOTAL_API_KEY / ABUSEIPDB_API_KEY / OTX_API_KEY in .env."
           />
         ) : (
           <Table>

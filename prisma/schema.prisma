@@ -137,6 +137,7 @@ model User {
   sessions  Session[]
   auditLogs AuditLog[]
   apiKeys   ApiKey[]
+  providerCredentials ProviderCredential[]
 
   // Reverse relations for provenance ("who claimed this")
   actorTechniques    ActorTechnique[]
@@ -187,6 +188,23 @@ model ApiKey {
   createdAt  DateTime  @default(now())
 
   @@index([userId])
+}
+
+model ProviderCredential {
+  id        String   @id @default(cuid())
+  /// Enrichment provider / feed id, e.g. "virustotal" or "nvd". Matches
+  /// EnrichmentProvider.name and the source catalog id.
+  provider  String   @unique
+  /// AES-256-GCM ciphertext (base64), never the raw key. Decrypted in memory
+  /// by lib/enrichment/secrets.ts and served from a sync cache.
+  encValue  String
+  /// Which admin last set this credential.
+  setById   String?
+  setBy     User?    @relation(fields: [setById], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([setById])
 }
 
 model AuditLog {

@@ -4,7 +4,9 @@ import { Card, CardHeader, EmptyState } from "@/components/ui/primitives";
 import { Table, Td, Th, Tr } from "@/components/ui/table";
 import { Muted, PageHeader, Tag } from "@/components/ui/page";
 import { CreateKeyForm } from "./create-key-form";
+import { ProviderKeyRow } from "./provider-key-row";
 import { revokeApiKey } from "./actions";
+import { CREDENTIAL_CATALOG, loadCredentialCache, secretOrigin } from "@/lib/enrichment/secrets";
 
 export const metadata = { title: "Settings · Pulse Intelligence" };
 
@@ -16,15 +18,33 @@ export default async function SettingsPage() {
     include: { user: { select: { name: true } } },
   });
 
+  // Decrypt DB-stored provider keys so secretOrigin() can tell Settings-set
+  // keys apart from env keys.
+  await loadCredentialCache();
+  const credentials = CREDENTIAL_CATALOG.map((c) => ({
+    ...c,
+    origin: secretOrigin(c.provider),
+  }));
+
   return (
     <div className="mx-auto max-w-4xl">
       <PageHeader
         title="Settings"
-        description="API keys for the public REST API. Provider keys and other platform settings land here as they ship."
+        description="API keys for the public REST API, and provider keys stored here are used before .env — set one way, not both."
       />
 
       <div className="space-y-4">
         <CreateKeyForm />
+
+        <Card>
+          <CardHeader
+            title="Provider credentials"
+            hint="Keys set here are encrypted at rest (CREDENTIAL_ENC_KEY) and take precedence over the same key in .env. The worker picks them up automatically."
+          />
+          {credentials.map((c) => (
+            <ProviderKeyRow key={c.provider} row={c} />
+          ))}
+        </Card>
 
         <Card>
           <CardHeader
