@@ -25,6 +25,9 @@
   "engines": {
     "node": ">=20.9.0"
   },
+  "overrides": {
+    "deepmerge-ts": "^8.0.1"
+  },
   "scripts": {
     "postinstall": "prisma generate",
     "dev": "next dev",
