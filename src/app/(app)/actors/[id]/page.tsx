@@ -360,6 +360,63 @@ export default async function ActorDetailPage(props: {
 
           <Card>
             <CardHeader
+              title="Malware & tools"
+              hint={`${actor.malware.length} malware · ${actor.tools.length} tools`}
+            />
+            {actor.malware.length === 0 && actor.tools.length === 0 ? (
+              <EmptyState
+                title="No software linked"
+                description="Run `npm run attack:sync` to import MITRE's software attribution for this group."
+              />
+            ) : (
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>Type</Th>
+                    <Th>Software</Th>
+                    <Th>Confidence</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {actor.malware.map((m) => (
+                    <Tr key={m.malwareId}>
+                      <Td className="text-xs text-ink-muted">Malware</Td>
+                      <Td>
+                        <Link
+                          href={`/malware/${m.malwareId}`}
+                          className="font-medium text-ink hover:text-brand"
+                        >
+                          {m.malware.name}
+                        </Link>
+                      </Td>
+                      <Td>
+                        <ConfidenceBar value={m.confidence} />
+                      </Td>
+                    </Tr>
+                  ))}
+                  {actor.tools.map((t) => (
+                    <Tr key={t.toolId}>
+                      <Td className="text-xs text-ink-muted">Tool</Td>
+                      <Td>
+                        <Link
+                          href={`/malware/${t.toolId}`}
+                          className="font-medium text-ink hover:text-brand"
+                        >
+                          {t.tool.name}
+                        </Link>
+                      </Td>
+                      <Td>
+                        <ConfidenceBar value={t.confidence} />
+                      </Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </Card>
+
+          <Card>
+            <CardHeader
               title="Indicators"
               hint={`${actor._count.indicators} linked`}
             />

@@ -20,6 +20,11 @@ export type SyncReport = {
   subtechniquesLinked: number;
   groupMappingsAvailable: number;
   groupMappingsApplied: number;
+  softwareAvailable: number;
+  softwareCreated: number;
+  softwareUpdated: number;
+  softwareMappingsAvailable: number;
+  softwareMappingsApplied: number;
 };
 
 /**
@@ -169,6 +174,97 @@ export async function ingestParsedBundle(
     }
   }
 
+  // --- Software (malware + tools) ----------------------------------------
+  // MITRE's `malware` and `tool` objects ingest into their own tables. We
+  // never invent software either — what ships stays an analyst's call, but the
+  // ATT&CK catalogue is the natural seed, identical to how techniques arrive.
+  let softwareCreated = 0;
+  let softwareUpdated = 0;
+
+  for (const s of parsed.software) {
+    if (s.kind === "malware") {
+      const existing = await db.malware.findUnique({ where: { attackId: s.attackId } });
+      if (existing) {
+        await db.malware.update({ where: { attackId: s.attackId }, data: {
+          name: s.name, aliases: s.aliases, platforms: s.platforms, description: s.description,
+        } });
+        softwareUpdated++;
+      } else {
+        await db.malware.create({ data: {
+          name: s.name, aliases: s.aliases, platforms: s.platforms, description: s.description,
+          attackId: s.attackId,
+        } });
+        softwareCreated++;
+      }
+    } else {
+      const existing = await db.tool.findUnique({ where: { attackId: s.attackId } });
+      if (existing) {
+        await db.tool.update({ where: { attackId: s.attackId }, data: {
+          name: s.name, aliases: s.aliases, description: s.description,
+          // Tools in the ATT&CK catalogue are dual-use by MITRE's definition —
+          // the `malware` objects carry the malicious half.
+          dualUse: true,
+        } });
+        softwareUpdated++;
+      } else {
+        await db.tool.create({ data: {
+          name: s.name, aliases: s.aliases, description: s.description,
+          attackId: s.attackId, dualUse: true,
+        } });
+        softwareCreated++;
+      }
+    }
+  }
+
+  // --- Group -> software mappings ----------------------------------------
+  // Same rule as techniques: only for actors we already track and have tied to
+  // an ATT&CK group id, at MITRE's confidence, and never in an analyst's name.
+  let softwareMappingsApplied = 0;
+
+  if (opts.applyGroupMappings !== false && parsed.softwareMappings.length > 0) {
+    const actors = await db.threatActor.findMany({
+      where: { attackGroupId: { not: null } },
+      select: { id: true, attackGroupId: true },
+    });
+    const actorByGroup = new Map(actors.map((a) => [a.attackGroupId as string, a.id]));
+    if (actorByGroup.size > 0) {
+      const [existingMalware, existingTools] = await Promise.all([
+        db.malware.findMany({ select: { id: true, attackId: true } }),
+        db.tool.findMany({ select: { id: true, attackId: true } }),
+      ]);
+      const malwareIdByAttack = new Map(existingMalware.map((m) => [m.attackId, m.id]));
+      const toolIdByAttack = new Map(existingTools.map((t) => [t.attackId, t.id]));
+
+      const malwareRows: { actorId: string; malwareId: string; confidence: number }[] = [];
+      const toolRows: { actorId: string; toolId: string; confidence: number }[] = [];
+
+      for (const m of parsed.softwareMappings) {
+        const actorId = actorByGroup.get(m.groupId);
+        if (!actorId) continue;
+        if (m.kind === "malware") {
+          const malwareId = malwareIdByAttack.get(m.softwareAttackId);
+          if (malwareId) malwareRows.push({ actorId, malwareId, confidence: 75 });
+        } else {
+          const toolId = toolIdByAttack.get(m.softwareAttackId);
+          if (toolId) toolRows.push({ actorId, toolId, confidence: 75 });
+        }
+      }
+
+      if (malwareRows.length) {
+        const result = await db.actorMalware.createMany({
+          data: malwareRows, skipDuplicates: true,
+        });
+        softwareMappingsApplied += result.count;
+      }
+      if (toolRows.length) {
+        const result = await db.actorTool.createMany({
+          data: toolRows, skipDuplicates: true,
+        });
+        softwareMappingsApplied += result.count;
+      }
+    }
+  }
+
   return {
     domain,
     version: parsed.version,
@@ -178,5 +274,10 @@ export async function ingestParsedBundle(
     subtechniquesLinked,
     groupMappingsAvailable: parsed.groupMappings.length,
     groupMappingsApplied,
+    softwareAvailable: parsed.software.length,
+    softwareCreated,
+    softwareUpdated,
+    softwareMappingsAvailable: parsed.softwareMappings.length,
+    softwareMappingsApplied,
   };
 }

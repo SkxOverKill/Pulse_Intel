@@ -43,7 +43,7 @@ const SECTIONS: { heading: string; items: NavItem[] }[] = [
     items: [
       { href: "/actors", label: "Threat Actors", icon: Users },
       { href: "/campaigns", label: "Campaigns", icon: Target },
-      { href: "/malware", label: "Malware & Tools", icon: Bug, soon: true },
+      { href: "/malware", label: "Malware & Tools", icon: Bug },
       { href: "/reports", label: "Reports", icon: FileText },
     ],
   },

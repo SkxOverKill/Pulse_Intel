@@ -112,6 +112,32 @@ const GROUP: StixObject = {
   external_references: [{ source_name: "mitre-attack", external_id: "G0016" }],
 };
 
+const MALWARE: StixObject = {
+  id: "malware--cobalt",
+  type: "malware",
+  name: "Cobalt Strike",
+  description: "A commercial penetration testing product.",
+  external_references: [{ source_name: "mitre-attack", external_id: "S0154" }],
+  x_mitre_aliases: ["Cobalt Strike", "COBALTSTRIKE"],
+  x_mitre_platforms: ["Windows", "Linux"],
+};
+
+const TOOL: StixObject = {
+  id: "x-mitre-tool--psexec",
+  type: "x-mitre-tool",
+  name: "PsExec",
+  external_references: [{ source_name: "mitre-attack", external_id: "S0029" }],
+  x_mitre_aliases: ["PsExec"],
+};
+
+const REVOKED_SOFTWARE: StixObject = {
+  id: "malware--old",
+  type: "malware",
+  name: "Retired Implant",
+  revoked: true,
+  external_references: [{ source_name: "mitre-attack", external_id: "S9999" }],
+};
+
 const rel = (
   id: string,
   type: string,
@@ -140,11 +166,16 @@ const BUNDLE: StixBundle = {
     DATA_COMPONENT,
     STRATEGY,
     GROUP,
+    MALWARE,
+    TOOL,
+    REVOKED_SOFTWARE,
     rel("rel--sub", "subtechnique-of", CHILD.id, PARENT.id),
     rel("rel--det", "detects", STRATEGY.id, CHILD.id),
     rel("rel--uses", "uses", GROUP.id, CHILD.id),
-    // A `uses` pointing at malware, not a technique — must be ignored.
-    rel("rel--uses2", "uses", GROUP.id, "malware--x"),
+    // Software targets are fine here — software mappings are extracted
+    // separately from technique mappings.
+    rel("rel--uses3", "uses", GROUP.id, MALWARE.id),
+    rel("rel--uses4", "uses", GROUP.id, TOOL.id),
   ],
 };
 
@@ -274,6 +305,50 @@ describe("parseBundle", () => {
     expect(parsed.groupMappings).toHaveLength(1);
   });
 
+  it("parses malware and tools from software objects", () => {
+    expect(parsed.software).toEqual([
+      {
+        kind: "malware",
+        attackId: "S0154",
+        name: "Cobalt Strike",
+        aliases: ["Cobalt Strike", "COBALTSTRIKE"],
+        platforms: ["Windows", "Linux"],
+        description: "A commercial penetration testing product.",
+      },
+      {
+        kind: "tool",
+        attackId: "S0029",
+        name: "PsExec",
+        aliases: ["PsExec"],
+        platforms: [],
+        description: null,
+      },
+    ]);
+  });
+
+  it("treated x-mitre-tool objects as tools", () => {
+    expect(parsed.software.find((s) => s.attackId === "S0029")!.kind).toBe("tool");
+  });
+
+  it("drops revoked software objects", () => {
+    expect(parsed.software.map((s) => s.attackId)).not.toContain("S9999");
+  });
+
+  it("extracts group to software mappings separately from techniques", () => {
+    expect(parsed.softwareMappings).toEqual([
+      { groupId: "G0016", softwareAttackId: "S0154", kind: "malware" },
+      { groupId: "G0016", softwareAttackId: "S0029", kind: "tool" },
+    ]);
+  });
+
+  it("leaves software mappings empty when a group uses no software", () => {
+    const bundle: StixBundle = {
+      type: "bundle",
+      objects: [COLLECTION, GROUP, rel("rel--uses5", "uses", GROUP.id, PARENT.id)],
+    };
+    expect(parseBundle(bundle).softwareMappings).toEqual([]);
+  });
+
   it("merges every matrix, largest first", () => {
     // Mobile ships "Network-Based Effects" (2 tactics) *before* the real
     // "Mobile ATT&CK" (12). Reading only the first matrix drops 12 tactics and
@@ -330,5 +405,7 @@ describe("parseBundle", () => {
     expect(empty.techniques).toEqual([]);
     expect(empty.tactics).toEqual([]);
     expect(empty.groupMappings).toEqual([]);
+    expect(empty.software).toEqual([]);
+    expect(empty.softwareMappings).toEqual([]);
   });
 });
