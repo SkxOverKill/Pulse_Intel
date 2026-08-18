@@ -151,8 +151,10 @@ Notes:
   `npm run worker`), which is exactly what the profile does.
 - The worker entrypoint is TypeScript and runs via `tsx` (a devDependency shipped
   in the image), so the container is self-contained for both processes.
-- `CREDENTIAL_ENC_KEY` is not required by the containerized path — it is reserved
-  for the future Settings UI and is not read by any code yet.
+- `CREDENTIAL_ENC_KEY` is optional in the container — provider keys set through
+  the Settings UI (`ProviderCredential` table) are encrypted with it. Without
+  it, Settings cannot store keys and the env vars below are the only source,
+  which keeps the OCI image and `.env` provider-key-only deployments working.
 
 ---
 

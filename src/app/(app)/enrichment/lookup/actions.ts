@@ -8,6 +8,7 @@ import { fail, ok, withAction, type ActionResult } from "@/lib/actions";
 import { parseIndicator } from "@/lib/ioc/normalize";
 import { ingestText } from "@/lib/ioc/ingest";
 import { enrichOne } from "@/lib/enrichment/enrich";
+import { loadCredentialCache } from "@/lib/enrichment/secrets";
 import { PROVIDERS } from "@/lib/enrichment/registry";
 import { extractDetails, type DetailValue } from "@/lib/enrichment/details";
 
@@ -61,6 +62,10 @@ export async function lookupIndicator(
   const result = await withAction(
     { role: "ANALYST", schema: LookupSchema, formData },
     async (input, user) => {
+      // Keep the provider key cache warm in case this action runs before any
+      // page render hydrated it (warm boot, server restart between requests).
+      await loadCredentialCache();
+
       const parsedValue = parseIndicator(input.value);
       if (!parsedValue) {
         return fail(

@@ -2,12 +2,15 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth/dal";
 import { PageHeader } from "@/components/ui/page";
 import { PROVIDERS } from "@/lib/enrichment/registry";
+import { loadCredentialCache } from "@/lib/enrichment/secrets";
 import { LookupForm } from "./lookup-form";
 
 export const metadata = { title: "Lookup · Pulse Intelligence" };
 
 export default async function LookupPage() {
   await requireRole("ANALYST");
+
+  await loadCredentialCache();
 
   const providers = PROVIDERS.filter((p) => p.isConfigured() && p.name !== "stub").map(
     (p) => ({ name: p.name, label: p.label }),

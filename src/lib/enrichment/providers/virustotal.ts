@@ -1,4 +1,5 @@
 import type { IndicatorType } from "@/generated/prisma/enums";
+import { getSecret } from "@/lib/enrichment/secrets";
 import {
   ProviderError,
   ProviderRateLimitError,
@@ -53,7 +54,7 @@ export const virusTotalProvider: EnrichmentProvider = {
   },
 
   isConfigured() {
-    return Boolean(process.env.VIRUSTOTAL_API_KEY);
+    return Boolean(getSecret("virustotal"));
   },
 
   async lookup(value, type): Promise<LookupResult> {
@@ -61,7 +62,7 @@ export const virusTotalProvider: EnrichmentProvider = {
     if (!build) throw new ProviderError(`VirusTotal does not support ${type}`);
 
     const res = await providerFetch(build(value), {
-      headers: { "x-apikey": process.env.VIRUSTOTAL_API_KEY ?? "" },
+      headers: { "x-apikey": getSecret("virustotal") ?? "" },
     });
 
     if (res.status === 429) {

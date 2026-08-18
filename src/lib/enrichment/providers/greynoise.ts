@@ -1,4 +1,5 @@
 import type { IndicatorType } from "@/generated/prisma/enums";
+import { getSecret } from "@/lib/enrichment/secrets";
 import {
   ProviderError,
   ProviderRateLimitError,
@@ -66,11 +67,9 @@ type GreyNoiseFullResponse = {
   first_seen?: string;
 };
 
-const KEY = process.env.GREYNOISE_API_KEY;
-
-function buildUrl(ip: string): string {
+function buildUrl(ip: string, key?: string): string {
   // Commercial key → full "quick" endpoint with richer data.
-  if (KEY) {
+  if (key) {
     return `https://api.greynoise.io/v2/noise/quick/${encodeURIComponent(ip)}`;
   }
   // Community endpoint — no key needed.
@@ -99,7 +98,9 @@ export const greyNoiseProvider: EnrichmentProvider = {
   name: "greynoise",
   label: "GreyNoise",
   // Community: ~10k/day, 1 req/s. Commercial keys get much more.
-  quota: { perMinute: 60, perDay: KEY ? 50_000 : 10_000 },
+  get quota() {
+    return { perMinute: 60, perDay: getSecret("greynoise") ? 50_000 : 10_000 };
+  },
   ttlMs: 12 * 60 * 60 * 1000, // 12h — noise classifications shift fast
 
   supports(type: IndicatorType) {
@@ -112,9 +113,10 @@ export const greyNoiseProvider: EnrichmentProvider = {
   },
 
   async lookup(value): Promise<LookupResult> {
-    const url = buildUrl(value);
+    const key = getSecret("greynoise");
+    const url = buildUrl(value, key);
     const headers: Record<string, string> = { Accept: "application/json" };
-    if (KEY) headers["key"] = KEY;
+    if (key) headers["key"] = key;
 
     const res = await providerFetch(url, { headers });
 
@@ -137,7 +139,7 @@ export const greyNoiseProvider: EnrichmentProvider = {
       throw new ProviderError(`GreyNoise HTTP ${res.status}`, res.status);
     }
 
-    const body = KEY
+    const body = key
       ? (await res.json()) as GreyNoiseFullResponse
       : (await res.json()) as GreyNoiseCommunityResponse;
 

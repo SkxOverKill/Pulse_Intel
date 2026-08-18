@@ -1,4 +1,5 @@
 import type { IndicatorType } from "@/generated/prisma/enums";
+import { getSecret } from "@/lib/enrichment/secrets";
 import {
   ProviderError,
   providerFetch,
@@ -42,7 +43,7 @@ export const otxProvider: EnrichmentProvider = {
   },
 
   isConfigured() {
-    return Boolean(process.env.OTX_API_KEY);
+    return Boolean(getSecret("otx"));
   },
 
   async lookup(value, type): Promise<LookupResult> {
@@ -51,7 +52,7 @@ export const otxProvider: EnrichmentProvider = {
 
     const res = await providerFetch(
       `https://otx.alienvault.com/api/v1/indicators/${path}/${encodeURIComponent(value)}/general`,
-      { headers: { "X-OTX-API-KEY": process.env.OTX_API_KEY ?? "" } },
+      { headers: { "X-OTX-API-KEY": getSecret("otx") ?? "" } },
     );
 
     if (res.status === 404) {

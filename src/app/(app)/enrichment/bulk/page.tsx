@@ -2,12 +2,15 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth/dal";
 import { PageHeader } from "@/components/ui/page";
 import { PROVIDERS } from "@/lib/enrichment/registry";
+import { loadCredentialCache } from "@/lib/enrichment/secrets";
 import { BulkLookupForm } from "./bulk-form";
 
 export const metadata = { title: "Bulk lookup · Pulse Intelligence" };
 
 export default async function BulkLookupPage() {
   await requireRole("ANALYST");
+
+  await loadCredentialCache();
 
   const providers = PROVIDERS.filter(
     (p) => p.isConfigured() && (p.name === "abuseipdb" || p.name === "virustotal"),

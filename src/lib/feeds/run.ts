@@ -11,6 +11,7 @@ import {
 } from "@/lib/feeds/parsers";
 import { ingestParsed, ingestText } from "@/lib/ioc/ingest";
 import { parseIndicator } from "@/lib/ioc/normalize";
+import { getSecret } from "@/lib/enrichment/secrets";
 
 /**
  * Feed execution.
@@ -39,7 +40,7 @@ const USER_AGENT =
  * closer to the edge of getting throttled.
  */
 function nvdHeaders(): Record<string, string> {
-  const key = process.env.NVD_API_KEY;
+  const key = getSecret("nvd");
   return key ? { apiKey: key } : {};
 }
 
@@ -375,7 +376,7 @@ async function runHandler(
     }
 
     case "otx-pulses": {
-      const key = process.env.OTX_API_KEY;
+      const key = getSecret("otx");
       if (!key) return { ingested: 0, duped: 0, message: "OTX_API_KEY not set" };
 
       const res = await fetchFeed(`${url}?limit=20&page=1`, {
