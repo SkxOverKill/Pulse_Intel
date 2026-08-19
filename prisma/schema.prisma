@@ -318,6 +318,9 @@ model Indicator {
   firstSeen   DateTime  @default(now())
   lastSeen    DateTime  @default(now())
   confidence  Int       @default(50)
+  /// An analyst set confidence by hand and enrichment must not overwrite it.
+  /// recomputeIndicatorConfidence() keeps this value until the lock is lifted.
+  confidenceLocked Boolean @default(false)
   severity    Severity  @default(MEDIUM)
   tlp         Tlp       @default(AMBER)
   tags        String[]  @default([])

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import * as z from "zod";
 import { db } from "@/lib/db";
-import { audit } from "@/lib/audit";
+import { audit, diff } from "@/lib/audit";
 import { fail, ok, parseList, withAction, type ActionResult } from "@/lib/actions";
 import { ingestText, type IngestReport } from "@/lib/ioc/ingest";
 
@@ -56,6 +56,52 @@ export async function bulkIngest(
 
   if (result.ok) revalidatePath("/indicators");
   return result;
+}
+
+const UpdateConfidenceSchema = z.object({
+  id: z.string().min(1),
+  confidence: z.coerce.number().int().min(0).max(100),
+  // A single unchecked checkbox arrives absent, checked arrives as "on".
+  lock: z.coerce.boolean().default(false),
+});
+
+/**
+ * Sets an indicator's confidence by hand. Setting `lock` pins the value so
+ * enrichment (recomputeIndicatorConfidence) stops overwriting it — an analyst
+ * who knows an IOC is confirmed is telling the platform "don't argue with me".
+ * Unchecking lock hands the value back to provider scores.
+ */
+export async function updateIndicatorConfidence(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  return withAction(
+    { role: "ANALYST", schema: UpdateConfidenceSchema, formData },
+    async (input, user) => {
+      const before = await db.indicator.findUnique({
+        where: { id: input.id },
+        select: { confidence: true, confidenceLocked: true },
+      });
+      if (!before) return fail("Indicator not found.");
+
+      const after = { confidence: input.confidence, confidenceLocked: input.lock };
+      if (before.confidence === after.confidence && before.confidenceLocked === after.confidenceLocked) {
+        return ok();
+      }
+
+      await db.indicator.update({ where: { id: input.id }, data: after });
+      await audit({
+        action: "UPDATE",
+        entityType: "Indicator",
+        entityId: input.id,
+        userId: user.id,
+        changes: diff(before, after),
+      });
+      revalidatePath(`/indicators/${input.id}`);
+      revalidatePath("/indicators");
+      return ok();
+    },
+  );
 }
 
 export async function setWhitelisted(formData: FormData): Promise<void> {

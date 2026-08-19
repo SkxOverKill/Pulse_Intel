@@ -15,6 +15,12 @@ All notable changes to Pulse Intelligence will be documented here.
   (VirusTotal, OTX, AbuseIPDB — including the multi-key comma list — Shodan,
   GreyNoise, NVD.)
 
+- **Indicator confidence locking** — analysts can pin an indicator's confidence
+  from the detail page (`Confidence` row). A pinned (locked) value is never
+  overwritten by `recomputeIndicatorConfidence`; until it's unlocked, provider
+  scores are ignored for that indicator. Unlocking hands the value back to
+  the provider-max reconciliation. Lock/unlock and value changes are audited.
+
 - **Self-service password change** — any signed-in user (not just admins) can
   rotate their password from the key icon in the topbar. Current password must
   verify (a hijacked session can't repoint an account), the current session stays

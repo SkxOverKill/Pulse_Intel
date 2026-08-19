@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ShieldOff, Trash2 } from "lucide-react";
+import { ShieldOff, Trash2, Lock } from "lucide-react";
+import { deleteIndicator, setWhitelisted } from "../actions";
+import { CopyDefangedButton } from "./copy-button";
+import { ConfidenceEditor } from "./confidence-editor";
+import { EnrichmentCards } from "./enrichment-cards";
 import { db } from "@/lib/db";
 import { getCurrentUser, hasRole } from "@/lib/auth/dal";
 import {
@@ -15,9 +19,6 @@ import { DetailRow, Muted, PageHeader, Tag } from "@/components/ui/page";
 import { Table, Td, Th, Tr } from "@/components/ui/table";
 import { defang } from "@/lib/ioc/normalize";
 import { whitelistReason } from "@/lib/ioc/whitelist";
-import { deleteIndicator, setWhitelisted } from "../actions";
-import { CopyDefangedButton } from "./copy-button";
-import { EnrichmentCards } from "./enrichment-cards";
 
 export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
@@ -127,7 +128,25 @@ export default async function IndicatorDetailPage(props: {
                 <SeverityBadge severity={indicator.severity} />
               </DetailRow>
               <DetailRow label="Confidence">
-                <ConfidenceBar value={indicator.confidence} />
+                <div>
+                  <ConfidenceBar value={indicator.confidence} />
+                  <div className="mt-1 flex items-center gap-1.5 text-xs">
+                    {indicator.confidenceLocked ? (
+                      <span className="inline-flex items-center gap-1 text-ok">
+                        <Lock className="size-3" /> Pinned by analyst
+                      </span>
+                    ) : (
+                      <Muted>Auto — provider max</Muted>
+                    )}
+                    {canEdit ? (
+                      <ConfidenceEditor
+                        id={indicator.id}
+                        confidence={indicator.confidence}
+                        locked={indicator.confidenceLocked}
+                      />
+                    ) : null}
+                  </div>
+                </div>
               </DetailRow>
               <DetailRow label="TLP">
                 <TlpBadge tlp={indicator.tlp} />
