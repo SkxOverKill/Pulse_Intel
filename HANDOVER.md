@@ -424,11 +424,22 @@ indicator set (`/hunting`), saved + scheduled hunts, and alerting on new matches
 
 **Phase 7 is complete.**
 
-**Phase 8 — Hardening.** Indicator decay (the `decayHalfLifeDays` field is set per source
-but nothing applies it yet), `Indicator` partitioning if it passes ~10M rows,
+**Phase 8 — Hardening.** Indicator decay (shipped: `decayHalfLifeDays` is set per
+source, ingest sets `expiresAt` via `src/lib/ioc/decay.ts`, re-seen indicators slide
+their expiry, `activeIndicatorWhere` filters exports/API/pages). Remaining:
+`Indicator` partitioning if it passes ~10M rows,
 backup/restore, rate limits on the public API, security review.
 
 **Also outstanding:**
+- Indicator confidence locking shipped (Phase 8.6): an analyst can pin an
+  indicator's confidence from the detail page. A pinned value
+  (`confidenceLocked`) is never overwritten by `recomputeIndicatorConfidence`;
+  unlock to hand control back to the provider-max reconciliation. Decision
+  logic is the pure `pickIndicatorConfidence` in
+  `src/lib/enrichment/confidence.ts`; the server action is
+  `updateIndicatorConfidence` in `src/app/(app)/indicators/actions.ts` (audited);
+  `Indicator.confidenceLocked` column added by migration
+  `20260819000000_add_indicator_confidence_lock`.
 - Settings for provider API keys shipped (Phase 8.5): keys are stored encrypted
   in a `ProviderCredential` table (AES-256-GCM under `CREDENTIAL_ENC_KEY`) and
   served through the sync cache in `src/lib/enrichment/secrets.ts`. A DB-set
@@ -439,6 +450,3 @@ backup/restore, rate limits on the public API, security review.
 - The RDP box has no `winget` (Win10 LTSC). Node 24 / PostgreSQL 17 / Memurai were
   installed from direct MSI/EXE downloads. `node`/`npm`/`psql` are not on the bash PATH by
   default — prepend `/c/Program Files/nodejs` and `/c/Program Files/PostgreSQL/17/bin`.
-- `recomputeIndicatorConfidence` overwrites analyst-set confidence with the max provider
-  score. Correct for feed-ingested IOCs, arguably wrong for a hand-tuned one — revisit if
-  it annoys you.

@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { pickIndicatorConfidence } from "@/lib/enrichment/confidence";
 import { consumeToken } from "@/lib/enrichment/limiter";
 import { getProvider, providersFor } from "@/lib/enrichment/registry";
 import { ProviderRateLimitError } from "@/lib/enrichment/types";
@@ -180,8 +181,18 @@ export async function enrichAll(
  * Takes the maximum rather than the mean: one provider seeing something
  * malicious is signal, and averaging it away with three "unknown"s is how real
  * detections get buried.
+ *
+ * An analyst-locked confidence (Indicator.confidenceLocked, set from the
+ * detail page) is never overwritten — reconciling a hand-set value with provider
+ * scores is the analyst's job until they unlock it.
  */
 export async function recomputeIndicatorConfidence(indicatorId: string) {
+  const indicator = await db.indicator.findUnique({
+    where: { id: indicatorId },
+    select: { confidence: true, confidenceLocked: true },
+  });
+  if (!indicator) return null;
+
   const enrichments = await db.enrichment.findMany({
     where: { indicatorId, error: null },
     select: { score: true },
@@ -191,12 +202,17 @@ export async function recomputeIndicatorConfidence(indicatorId: string) {
     .map((e) => e.score)
     .filter((s): s is number => typeof s === "number");
 
-  if (scores.length === 0) return null;
+  const next = pickIndicatorConfidence(
+    indicator.confidence,
+    indicator.confidenceLocked,
+    scores,
+  );
 
-  const max = Math.max(...scores);
-  await db.indicator.update({
-    where: { id: indicatorId },
-    data: { confidence: max },
-  });
-  return max;
+  if (next !== indicator.confidence) {
+    await db.indicator.update({
+      where: { id: indicatorId },
+      data: { confidence: next },
+    });
+  }
+  return next;
 }
