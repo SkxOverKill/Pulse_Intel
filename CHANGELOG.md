@@ -21,6 +21,16 @@ All notable changes to Pulse Intelligence will be documented here.
   scores are ignored for that indicator. Unlocking hands the value back to
   the provider-max reconciliation. Lock/unlock and value changes are audited.
 
+- **Backup/restore round-trip smoke test** — `npm run db:verify-backup` dumps
+  `DATABASE_URL`, restores into a scratch database on the same server, and
+  diffs schema-only and data-only dumps (`pg_dump`) of source vs restored to
+  prove a backup restores to an identical database — not just matching row
+  counts. The scratch database and temp dump are removed in every exit path
+  (`--keep` leaves the scratch DB for inspection). The CI `docker` job now
+  seeds demo data and runs this against the compose stack on every PR, so a
+  platform/image that breaks `pg_dump`/`pg_restore` fails CI instead of a
+  restore. Pure URL helpers live under `src/lib/backup/urls.ts` (+tests).
+
 - **Self-service password change** — any signed-in user (not just admins) can
   rotate their password from the key icon in the topbar. Current password must
   verify (a hijacked session can't repoint an account), the current session stays
@@ -41,6 +51,9 @@ All notable changes to Pulse Intelligence will be documented here.
   `node dist/worker.js`; app gets a `/api/health` healthcheck; the container
   no longer requires `CREDENTIAL_ENC_KEY` (a fresh install can add provider
   keys through the UI after boot).
+- Runtime Docker image installs `postgresql-client`, so operator backup/restore
+  tooling (`db:backup`, `db:restore`, `db:verify-backup`) runs inside the
+  deployed container, not just on the host.
 - CI builds the Docker image and smoke-tests the **full compose stack** — app
   answers `/api/health`, worker reports ready — against real Postgres + Redis
   service containers.

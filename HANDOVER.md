@@ -1,8 +1,10 @@
 # Pulse Intelligence — Handover
 
-Last updated: **2026-07-23**
-Status: **Phases 1–7 of 8 complete.** 143 tests, clean build, 38 routes. Now running on
-real PostgreSQL 17 (§4.1 resolved). CVE data backfilled current as of 2026-07-23; see §4.5.
+Last updated: **2026-08-20**
+Status: **Phases 1–8 hardening in progress.** 232 tests, clean build. Running on a
+Prisma-managed PostgreSQL dev server (§4.1 resolved). Provider-role migration notes superseded
+by the `ProviderCredential` table; see the confidence-lock and backup-smoke notes in
+"Also outstanding" below.
 
 A self-hosted Threat Intelligence Platform — APT tracking, campaigns, IOC management with
 bulk enrichment, MITRE ATT&CK, automated feed ingestion, search, and threat hunting.
@@ -426,11 +428,22 @@ indicator set (`/hunting`), saved + scheduled hunts, and alerting on new matches
 
 **Phase 8 — Hardening.** Indicator decay (shipped: `decayHalfLifeDays` is set per
 source, ingest sets `expiresAt` via `src/lib/ioc/decay.ts`, re-seen indicators slide
-their expiry, `activeIndicatorWhere` filters exports/API/pages). Remaining:
-`Indicator` partitioning if it passes ~10M rows,
-backup/restore, rate limits on the public API, security review.
+their expiry, `activeIndicatorWhere` filters exports/API/pages). Backup/restore shipped:
+`db:backup`/`db:restore` (see `docs/BACKUP_RESTORE.md`) plus a round-trip smoke test
+(`npm run db:verify-backup`, run in CI against the compose stack). Rate limits on the
+public API shipped (per-API-key, Redis fixed-window in `src/lib/api/rate-limit.ts`).
+Remaining:
+`Indicator` partitioning if it passes ~10M rows, security review.
 
 **Also outstanding:**
+- Backup/restore round-trip smoke test shipped (Phase 8.6b): `npm run
+  db:verify-backup` (`scripts/verify-backup-restore.ts`) dumps `DATABASE_URL`,
+  restores into a scratch DB, and diffs schema-only + data-only pg_dumps of
+  source vs restored. Needs pg_dump/pg_restore/psql on PATH and CREATEDB for
+  the DATABASE_URL role. CI `docker` job seeds demo data then runs it in the
+  app container (`docker compose exec -T app npm run db:verify-backup`); the
+  runtime image now ships `postgresql-client`. Pure URL helpers in
+  `src/lib/backup/urls.ts` (+4 tests).
 - Indicator confidence locking shipped (Phase 8.6): an analyst can pin an
   indicator's confidence from the detail page. A pinned value
   (`confidenceLocked`) is never overwritten by `recomputeIndicatorConfidence`;
