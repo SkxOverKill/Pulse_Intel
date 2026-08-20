@@ -105,7 +105,9 @@ jobs:
           exit 1
 
       - name: Seed demo data
-        run: docker compose exec -T app npm run db:seed:demo
+        run: |
+          docker compose exec -T app npm run db:seed
+          docker compose exec -T app npm run db:seed:demo
 
       - name: Backup/restore round-trip smoke
         run: docker compose exec -T app npm run db:verify-backup
