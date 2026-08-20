@@ -47,8 +47,16 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # it, and prisma warns (then degrades) without it. postgresql-client ships
 # pg_dump/pg_restore/psql so operator backup/restore tooling
 # (db:backup, db:restore, db:verify-backup) runs inside the deployed image.
-# The build stage deliberately keeps openssl only; pg tools are a runtime-add.
-RUN apt-get update && apt-get install -y --no-install-recommends openssl postgresql-client \
+# Bookworm's default client is 15 and cannot dump a PostgreSQL 17 server
+# (the compose target), so pin the client to 17 from the pgdg repo. The build
+# stage deliberately keeps only openssl; pg tools are a runtime-only add.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
+  && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    | gpg --dearmor -o /usr/share/keyrings/pgdg.gpg \
+  && echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] http://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends openssl postgresql-client-17 \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/package.json /app/package-lock.json /app/prisma.config.ts /app/tsconfig.json ./
