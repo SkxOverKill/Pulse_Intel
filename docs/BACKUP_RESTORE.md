@@ -13,11 +13,18 @@ safe default path — scheduled, rotated, encrypted, offsite — and a restore r
   dump restores across hosts. Supports `--retain`, `--verify`, `--encrypt` (below).
 - `npm run db:restore` — `pg_restore --clean --if-exists`; **destructive**. Refuses to run
   without `--yes` and validates the dump *before* touching the target database.
+- `npm run db:verify-backup` — non-destructive round-trip smoke test. Dumps `DATABASE_URL`,
+  restores into a throwaway scratch database on the same server, diffs schema-only and
+  data-only dumps of source vs restored, then drops the scratch database. Fails loudly on
+  any mismatch. The CI `docker` job runs it against the compose stack on every PR, so a
+  platform/image that silently breaks `pg_dump`/`pg_restore` fails CI instead of a restore.
 
 ## Requirements
 
-- `pg_dump` and `pg_restore` (PostgreSQL client tools) installed on the host.
+- `pg_dump`, `pg_restore` **and `psql`** (PostgreSQL client tools) installed on the host.
 - `DATABASE_URL` pointing at the database to back up or restore.
+- The role in `DATABASE_URL` must have `CREATEDB` privilege (the smoke test creates and
+  drops its own scratch database; the source database is only ever read).
 - `openssl` only when using `--encrypt`.
 - Enough encrypted storage for the exported dump.
 
@@ -122,7 +129,10 @@ to run without `--yes` for exactly that reason.
   path remains the portable, vendor-neutral option and your fallback when you need a dump
   to move hosts.
 - **Disaster recovery test**: restore into a throwaway database on a schedule (quarterly is
-  a common cadence). A backup that has never been restored is a wish, not a backup.
+  a common cadence). A backup that has never been restored is a wish, not a backup. The
+  one-liner version of that test is `npm run db:verify-backup` — run it on the box that
+  holds the platform (or in a non-production container pointed at a copy host) after any
+  platform/Postgres upgrade, and whenever the CI stack changes images.
 
 ## Storage guidance
 

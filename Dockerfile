@@ -43,7 +43,12 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN apt-get update && apt-get install -y --no-install-recommends openssl \
+# OpenSSL is required by Prisma's schema/migration engine — node:24-slim omits
+# it, and prisma warns (then degrades) without it. postgresql-client ships
+# pg_dump/pg_restore/psql so operator backup/restore tooling
+# (db:backup, db:restore, db:verify-backup) runs inside the deployed image.
+# The build stage deliberately keeps openssl only; pg tools are a runtime-add.
+RUN apt-get update && apt-get install -y --no-install-recommends openssl postgresql-client \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/package.json /app/package-lock.json /app/prisma.config.ts /app/tsconfig.json ./
